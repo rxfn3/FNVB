@@ -126,9 +126,16 @@
             const [toast, setToast] = useState(null);
             
             // Cloud Sync States
+            const [syncKey, setSyncKey] = useState(() => localStorage.getItem('fnManagerSyncKey') || '');
             const [cloudUser, setCloudUser] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
-            const hasCloud = typeof __firebase_config !== 'undefined' && __firebase_config;
+            
+            // Check for Canvas environment config, or use user's own config
+            const userFirebaseConfig = {
+                // To make Cloud work outside this preview (on Vercel/Netlify), paste your Firebase config here:
+                apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: ""
+            };
+            const hasCloud = (typeof __firebase_config !== 'undefined' && __firebase_config) || userFirebaseConfig.apiKey !== "";
 
             const itemsPerPage = 20;
             const localDataRef = useRef(data);
@@ -149,7 +156,7 @@
                 setData(newData);
                 localStorage.setItem('fnManagerData_prod', JSON.stringify(newData));
                 if (!skipCloud) pushToCloudBackup(newData);
-            }, [cloudUser]);
+            }, [cloudUser, syncKey]);
 
             // --- Optional Cloud Layer ---
             useEffect(() => {
@@ -159,7 +166,8 @@
                         const { initializeApp } = await import('firebase/app');
                         const { getAuth, signInAnonymously, signInWithCustomToken } = await import('firebase/auth');
                         
-                        const app = initializeApp(JSON.parse(__firebase_config));
+                        const configToUse = (typeof __firebase_config !== 'undefined' && __firebase_config) ? JSON.parse(__firebase_config) : userFirebaseConfig;
+                        const app = initializeApp(configToUse);
                         const auth = getAuth(app);
                         
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -178,15 +186,17 @@
 
             // Auto-Sync Realtime Listener
             useEffect(() => {
-                if (!hasCloud || !cloudUser) return;
+                if (!hasCloud || !cloudUser || !syncKey) return;
                 let unsubscribe;
                 
                 const setupRealtimeSync = async () => {
                     try {
                         const { getFirestore, doc, onSnapshot } = await import('firebase/firestore');
                         const db = getFirestore();
-                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fn-manager';
-                        const docRef = doc(db, 'artifacts', appId, 'users', cloudUser.uid, 'backup', 'latest');
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : (userFirebaseConfig.projectId || 'fn-manager');
+                        
+                        // Using a Public Shared Room path so multiple browsers with the same key can sync
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey);
                         
                         unsubscribe = onSnapshot(docRef, (snapshot) => {
                             if (snapshot.exists() && snapshot.data().payload) {
@@ -206,16 +216,16 @@
                 
                 setupRealtimeSync();
                 return () => { if (unsubscribe) unsubscribe(); };
-            }, [cloudUser, updateDatabase, showToast]);
+            }, [cloudUser, syncKey, updateDatabase, showToast]);
 
             const pushToCloudBackup = async (payload) => {
-                if (!hasCloud || !cloudUser || !navigator.onLine) return;
+                if (!hasCloud || !cloudUser || !navigator.onLine || !syncKey) return;
                 setIsSyncing(true);
                 try {
                     const { getFirestore, doc, setDoc } = await import('firebase/firestore');
                     const db = getFirestore();
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'fn-manager';
-                    await setDoc(doc(db, 'artifacts', appId, 'users', cloudUser.uid, 'backup', 'latest'), {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : (userFirebaseConfig.projectId || 'fn-manager');
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey), {
                         payload: JSON.stringify(payload),
                         timestamp: Date.now()
                     });
@@ -224,13 +234,13 @@
             };
 
             const pullFromCloudBackup = async (userObj = cloudUser, force = false) => {
-                if (!hasCloud || !userObj) return;
+                if (!hasCloud || !userObj || !syncKey) return showToast("Please set a Cloud Sync Passkey first", "warning");
                 setIsSyncing(true);
                 try {
                     const { getFirestore, doc, getDoc } = await import('firebase/firestore');
                     const db = getFirestore();
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'fn-manager';
-                    const snapshot = await getDoc(doc(db, 'artifacts', appId, 'users', userObj.uid, 'backup', 'latest'));
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : (userFirebaseConfig.projectId || 'fn-manager');
+                    const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey));
                     
                     if (snapshot.exists() && snapshot.data().payload) {
                         const cloudData = JSON.parse(snapshot.data().payload);
@@ -239,7 +249,7 @@
                             showToast("Restored from Cloud Backup!");
                         }
                     } else {
-                        showToast("No cloud backup found.", "warning");
+                        showToast("No cloud backup found for this Passkey.", "warning");
                     }
                 } catch(e) { showToast("Cloud pull failed", "warning"); }
                 setIsSyncing(false);
@@ -514,7 +524,20 @@
 
                     {/* Data Manager Modal */}
                     {dataManagerOpen && (
-                        <DataManager data={data} updateDatabase={updateDatabase} onClose={() => setDataManagerOpen(false)} showToast={showToast} cloudUser={cloudUser} pullFromCloudBackup={pullFromCloudBackup} isSyncing={isSyncing} />
+                        <DataManager 
+                            data={data} 
+                            updateDatabase={updateDatabase} 
+                            onClose={() => setDataManagerOpen(false)} 
+                            showToast={showToast} 
+                            cloudUser={cloudUser} 
+                            pullFromCloudBackup={pullFromCloudBackup} 
+                            isSyncing={isSyncing} 
+                            syncKey={syncKey}
+                            setSyncKey={(key) => {
+                                setSyncKey(key);
+                                localStorage.setItem('fnManagerSyncKey', key);
+                            }}
+                        />
                     )}
 
                     {/* Toast Notification */}
@@ -622,7 +645,7 @@
         }
 
         // Data Manager Modal (Backup/Restore/CSV)
-        function DataManager({ data, updateDatabase, onClose, showToast, cloudUser, pullFromCloudBackup, isSyncing }) {
+        function DataManager({ data, updateDatabase, onClose, showToast, cloudUser, pullFromCloudBackup, isSyncing, syncKey, setSyncKey }) {
             const csvInputRef = useRef(null);
             const jsonInputRef = useRef(null);
 
@@ -746,19 +769,31 @@
 
                             {/* Cloud Section */}
                             <div className="pt-4 border-t border-slate-800">
-                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Cloud Sync (Secondary)</h3>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Cloud Sync (Cross-Device)</h3>
                                 {cloudUser ? (
-                                    <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
-                                        <div>
-                                            <div className="text-white font-bold mb-1"><i className="fa-solid fa-cloud text-blue-400 mr-1"></i> Connected</div>
-                                            <div className="text-xs text-slate-400">Data autosaves locally and pushes to cloud.</div>
+                                    <div className="flex flex-col gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
+                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                            <div>
+                                                <div className="text-white font-bold mb-1"><i className="fa-solid fa-cloud text-blue-400 mr-1"></i> Sync Passkey</div>
+                                                <div className="text-xs text-slate-400">Enter the same secret passkey on your phone/PC to link them instantly.</div>
+                                            </div>
+                                            <div className="flex gap-2 w-full sm:w-auto">
+                                                <input 
+                                                    type="password" 
+                                                    value={syncKey} 
+                                                    onChange={(e) => setSyncKey(e.target.value)} 
+                                                    placeholder="Enter a secret key..." 
+                                                    className="w-full sm:w-48 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                                                />
+                                                <button onClick={() => pullFromCloudBackup(cloudUser, true)} disabled={isSyncing || !syncKey} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white border border-blue-500/30 rounded-lg text-sm font-bold disabled:opacity-50 transition-all whitespace-nowrap">
+                                                    {isSyncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-rotate"></i>} Sync
+                                                </button>
+                                            </div>
                                         </div>
-                                        <button onClick={() => pullFromCloudBackup(cloudUser, true)} disabled={isSyncing} className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm font-bold hover:bg-blue-600/40 disabled:opacity-50 transition-all">
-                                            {isSyncing ? 'Syncing...' : 'Force Pull Cloud'}
-                                        </button>
+                                        {!syncKey && <div className="text-xs text-amber-400 mt-1"><i className="fa-solid fa-triangle-exclamation"></i> You must enter a Passkey to sync data across browsers.</div>}
                                     </div>
                                 ) : (
-                                    <div className="p-4 rounded-xl border border-dashed border-slate-600 text-slate-500 text-center text-sm font-medium">Cloud sync is currently inactive. Local Storage is safe.</div>
+                                    <div className="p-4 rounded-xl border border-dashed border-slate-600 text-slate-500 text-center text-sm font-medium">Cloud sync is currently inactive. Please provide Firebase Config in code if hosting externally.</div>
                                 )}
                             </div>
 
