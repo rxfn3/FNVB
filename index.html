@@ -87,7 +87,7 @@
             return Number(str) || 0;
         };
 
-        // Robust CSV Parser (Handles commas inside quotes, newlines, etc.)
+        // Robust CSV Parser
         const robustCSVParse = (str) => {
             const arr = [];
             let quote = false;
@@ -130,12 +130,20 @@
             const [cloudUser, setCloudUser] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
             
-            // Check for Canvas environment config, or use user's own config
+            // 🚨========================================================================🚨
+            // 🚨 VERCEL CLOUD SETUP: Paste your Firebase Config here to enable sync!     🚨
+            // 🚨========================================================================🚨
             const userFirebaseConfig = {
-                // To make Cloud work outside this preview (on Vercel/Netlify), paste your Firebase config here:
-                apiKey: "", authDomain: "", projectId: "", storageBucket: "", messagingSenderId: "", appId: ""
+                apiKey: "AIzaSyDgeyPg5BVSV-nZxWZ3A9i28OiFHomXVuw",
+                authDomain: "fn-dashboard-b485a.firebaseapp.com",
+                projectId: "fn-dashboard-b485a",
+                storageBucket: "fn-dashboard-b485a.firebasestorage.app",
+                messagingSenderId: "1028327429415",
+                appId: "1:1028327429415:web:6670a554a1956df0a9c502",
+                measurementId: "G-LWEKYXMKYE"
             };
-            const hasCloud = (typeof __firebase_config !== 'undefined' && __firebase_config) || userFirebaseConfig.apiKey !== "";
+            
+            const hasCloud = (typeof __firebase_config !== 'undefined' && __firebase_config) || (userFirebaseConfig.apiKey && userFirebaseConfig.apiKey.length > 5);
 
             const itemsPerPage = 20;
             const localDataRef = useRef(data);
@@ -166,11 +174,11 @@
                         const { initializeApp } = await import('firebase/app');
                         const { getAuth, signInAnonymously, signInWithCustomToken } = await import('firebase/auth');
                         
-                        const configToUse = (typeof __firebase_config !== 'undefined' && __firebase_config) ? JSON.parse(__firebase_config) : userFirebaseConfig;
+                        const configToUse = (userFirebaseConfig.apiKey && userFirebaseConfig.apiKey.length > 5) ? userFirebaseConfig : JSON.parse(__firebase_config);
                         const app = initializeApp(configToUse);
                         const auth = getAuth(app);
                         
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && !userFirebaseConfig.apiKey) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
@@ -193,9 +201,8 @@
                     try {
                         const { getFirestore, doc, onSnapshot } = await import('firebase/firestore');
                         const db = getFirestore();
-                        const appId = typeof __app_id !== 'undefined' ? __app_id : (userFirebaseConfig.projectId || 'fn-manager');
+                        const appId = (userFirebaseConfig.projectId && userFirebaseConfig.projectId.length > 2) ? userFirebaseConfig.projectId : (typeof __app_id !== 'undefined' ? __app_id : 'fn-manager');
                         
-                        // Using a Public Shared Room path so multiple browsers with the same key can sync
                         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey);
                         
                         unsubscribe = onSnapshot(docRef, (snapshot) => {
@@ -203,10 +210,9 @@
                                 const cloudDataStr = snapshot.data().payload;
                                 const localDataStr = JSON.stringify(localDataRef.current);
                                 
-                                // If cloud has different data, another device updated it
                                 if (cloudDataStr !== localDataStr) {
                                     const cloudData = JSON.parse(cloudDataStr);
-                                    updateDatabase(cloudData, true); // true = don't push back up
+                                    updateDatabase(cloudData, true); 
                                     showToast("Data auto-synced from cloud!");
                                 }
                             }
@@ -224,7 +230,7 @@
                 try {
                     const { getFirestore, doc, setDoc } = await import('firebase/firestore');
                     const db = getFirestore();
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : (userFirebaseConfig.projectId || 'fn-manager');
+                    const appId = (userFirebaseConfig.projectId && userFirebaseConfig.projectId.length > 2) ? userFirebaseConfig.projectId : (typeof __app_id !== 'undefined' ? __app_id : 'fn-manager');
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey), {
                         payload: JSON.stringify(payload),
                         timestamp: Date.now()
@@ -239,7 +245,7 @@
                 try {
                     const { getFirestore, doc, getDoc } = await import('firebase/firestore');
                     const db = getFirestore();
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : (userFirebaseConfig.projectId || 'fn-manager');
+                    const appId = (userFirebaseConfig.projectId && userFirebaseConfig.projectId.length > 2) ? userFirebaseConfig.projectId : (typeof __app_id !== 'undefined' ? __app_id : 'fn-manager');
                     const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey));
                     
                     if (snapshot.exists() && snapshot.data().payload) {
@@ -263,7 +269,7 @@
                 } else {
                     const newItem = { ...formData, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) };
                     if (modalConfig.parentId) newItem.parentId = String(modalConfig.parentId);
-                    newData = [newItem, ...data]; // Add new items to top
+                    newData = [newItem, ...data]; 
                     showToast(modalConfig.parentId ? 'Sub-order added!' : 'Main account added!');
                 }
                 updateDatabase(newData);
