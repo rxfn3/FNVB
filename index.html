@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Fortnite V-Bucks & Account Management Dashboard">
+    <title>FN Manager Pro | Production Dashboard</title>
+    
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
+    
+    <!-- High-Speed React & ReactDOM via Cloudflare -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Babel Standalone (Optimized caching) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js" crossorigin="anonymous"></script>
+
+    <!-- Importmap for Optional Firebase (Keeps global scope clean) -->
+    <script type="importmap">
+      {
+        "imports": {
+          "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+          "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+          "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+        }
+      }
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { fn: { dark: '#0f172a', card: '#1e293b', primary: '#3b82f6', accent: '#8b5cf6' } }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Modern Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        body { font-family: 'Inter', 'Segoe UI', sans-serif; background-color: #0f172a; color: #f8fafc; overflow-y: scroll; }
+        .glass-panel { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        
+        /* Smooth Fade In */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+        // --- Error Boundary for Crash Prevention ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center p-4">
+                            <div className="bg-red-900/30 border border-red-500/50 p-8 rounded-2xl max-w-lg text-center">
+                                <i className="fa-solid fa-triangle-exclamation text-5xl text-red-400 mb-4"></i>
+                                <h2 className="text-2xl font-bold text-white mb-2">System Recovered from Crash</h2>
+                                <p className="text-red-200 mb-6 text-sm">A piece of data was corrupted. Your database is safe, but the current view crashed.</p>
+                                <button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold">Reload Dashboard</button>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        // --- Utility Functions ---
+        const parseNum = (val) => {
+            if (!val) return 0;
+            const str = String(val).replace(/[^0-9.-]+/g, "");
+            return Number(str) || 0;
+        };
+
+        // Robust CSV Parser (Handles commas inside quotes, newlines, etc.)
+        const robustCSVParse = (str) => {
+            const arr = [];
+            let quote = false;
+            for (let row = 0, col = 0, c = 0; c < str.length; c++) {
+                let cc = str[c], nc = str[c+1];
+                arr[row] = arr[row] || [];
+                arr[row][col] = arr[row][col] || '';
+                if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
+                if (cc == '"') { quote = !quote; continue; }
+                if (cc == ',' && !quote) { ++col; continue; }
+                if (cc == '\r' && nc == '\n' && !quote) { ++row; col = 0; ++c; continue; }
+                if (cc == '\n' && !quote) { ++row; col = 0; continue; }
+                if (cc == '\r' && !quote) { ++row; col = 0; continue; }
+                arr[row][col] += cc;
+            }
+            return arr.map(row => row.map(cell => cell.trim()));
+        };
+
+        // --- Core Application Component ---
+        function App() {
+            // LocalStorage acts as Primary Source of Truth
+            const [data, setData] = useState(() => {
+                try {
+                    const local = localStorage.getItem('fnManagerData_prod');
+                    if (local) return JSON.parse(local);
+                } catch(e) { console.error("Local data corrupt", e); }
+                return [];
+            });
+
+            // UI States
+            const [searchTerm, setSearchTerm] = useState('');
+            const [filterStatus, setFilterStatus] = useState('All');
+            const [currentPage, setCurrentPage] = useState(1);
+            const [modalConfig, setModalConfig] = useState({ isOpen: false, item: null, parentId: null });
+            const [dataManagerOpen, setDataManagerOpen] = useState(false);
+            const [toast, setToast] = useState(null);
+            
+            // Cloud Sync States
+            const [cloudUser, setCloudUser] = useState(null);
+            const [isSyncing, setIsSyncing] = useState(false);
+            const hasCloud = typeof __firebase_config !== 'undefined' && __firebase_config;
+
+            const itemsPerPage = 20;
+
+            // --- Database Update Engine ---
+            const updateDatabase = useCallback((newData, skipCloud = false) => {
+                setData(newData);
+                localStorage.setItem('fnManagerData_prod', JSON.stringify(newData));
+                if (!skipCloud) pushToCloudBackup(newData);
+            }, [cloudUser]);
+
+            // --- Optional Cloud Layer (Dynamic Imports avoid Babel compilation issues) ---
+            useEffect(() => {
+                if (!hasCloud) return;
+                const initFirebase = async () => {
+                    try {
+                        const { initializeApp } = await import('firebase/app');
+                        const { getAuth, signInAnonymously, signInWithCustomToken } = await import('firebase/auth');
+                        
+                        const app = initializeApp(JSON.parse(__firebase_config));
+                        const auth = getAuth(app);
+                        
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        
+                        auth.onAuthStateChanged((u) => {
+                            setCloudUser(u);
+                            // Auto-pull if local is empty
+                            if (u && data.length === 0) pullFromCloudBackup(u);
+                        });
+                    } catch (e) { console.warn("Cloud connection skipped/failed"); }
+                };
+                initFirebase();
+            }, []);
+
+            const pushToCloudBackup = async (payload) => {
+                if (!hasCloud || !cloudUser || !navigator.onLine) return;
+                setIsSyncing(true);
+                try {
+                    const { getFirestore, doc, setDoc } = await import('firebase/firestore');
+                    const db = getFirestore();
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'fn-manager';
+                    await setDoc(doc(db, 'artifacts', appId, 'users', cloudUser.uid, 'backup', 'latest'), {
+                        payload: JSON.stringify(payload),
+                        timestamp: Date.now()
+                    });
+                } catch(e) { console.error("Cloud push failed"); }
+                setIsSyncing(false);
+            };
+
+            const pullFromCloudBackup = async (userObj = cloudUser, force = false) => {
+                if (!hasCloud || !userObj) return;
+                setIsSyncing(true);
+                try {
+                    const { getFirestore, doc, getDoc } = await import('firebase/firestore');
+                    const db = getFirestore();
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'fn-manager';
+                    const snapshot = await getDoc(doc(db, 'artifacts', appId, 'users', userObj.uid, 'backup', 'latest'));
+                    
+                    if (snapshot.exists() && snapshot.data().payload) {
+                        const cloudData = JSON.parse(snapshot.data().payload);
+                        if (force || data.length === 0) {
+                            updateDatabase(cloudData, true); // Skip pushing back
+                            showToast("Restored from Cloud Backup!");
+                        }
+                    }
+                } catch(e) { showToast("Cloud pull failed", "warning"); }
+                setIsSyncing(false);
+            };
+
+            // --- Handlers & Helpers ---
+            const showToast = (message, type = 'success') => {
+                setToast({ message, type });
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            const handleSave = (formData) => {
+                let newData;
+                if (modalConfig.item) {
+                    newData = data.map(d => String(d.id) === String(modalConfig.item.id) ? { ...d, ...formData } : d);
+                    showToast('Record updated!');
+                } else {
+                    const newItem = { ...formData, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) };
+                    if (modalConfig.parentId) newItem.parentId = String(modalConfig.parentId);
+                    newData = [newItem, ...data]; // Add new items to top
+                    showToast(modalConfig.parentId ? 'Sub-order added!' : 'Main account added!');
+                }
+                updateDatabase(newData);
+                setModalConfig({ isOpen: false, item: null, parentId: null });
+            };
+
+            const handleDelete = (id) => {
+                if(confirm("PERMANENT DELETE: Are you sure you want to delete this record and all attached sub-orders?")) {
+                    const newData = data.filter(d => String(d.id) !== String(id) && String(d.parentId) !== String(id));
+                    updateDatabase(newData);
+                    showToast('Record deleted.', 'warning');
+                }
+            };
+
+            const toggleArchive = (id) => {
+                const item = data.find(d => String(d.id) === String(id));
+                const isArchiving = !item?.isArchived;
+                const newData = data.map(d => String(d.id) === String(id) || String(d.parentId) === String(id) ? { ...d, isArchived: isArchiving } : d);
+                updateDatabase(newData);
+                showToast(isArchiving ? 'Archived Completed Order' : 'Restored to Dashboard');
+            };
+
+            // --- Computed Data & Filtering ---
+            const enrichedData = useMemo(() => {
+                return data.map(item => {
+                    if (item.parentId) return item;
+                    const children = data.filter(d => String(d.parentId) === String(item.id));
+                    const totalUsed = parseNum(item.orderVb) + children.reduce((sum, child) => sum + parseNum(child.orderVb), 0);
+                    const remain = parseNum(item.availableVb) - totalUsed;
+                    return { ...item, _computedRemain: remain, _computedUsed: totalUsed };
+                });
+            }, [data]);
+
+            const metrics = useMemo(() => {
+                const mainAccounts = data.filter(d => !d.parentId);
+                const totalAvailable = mainAccounts.reduce((sum, d) => sum + parseNum(d.availableVb), 0);
+                const totalOrdered = data.reduce((sum, d) => sum + parseNum(d.orderVb), 0);
+                const activeData = data.filter(d => !d.isArchived);
+                
+                return {
+                    accounts: mainAccounts.length,
+                    stock: activeData.filter(d => d.status === 'Stock').length,
+                    pending: activeData.filter(d => d.status === 'Pending').length,
+                    done: activeData.filter(d => d.status === 'Done').length,
+                    totalAvailable,
+                    totalOrdered,
+                    remain: totalAvailable - totalOrdered
+                };
+            }, [data]);
+
+            const displayGroups = useMemo(() => {
+                const term = searchTerm.toLowerCase();
+                const mains = enrichedData.filter(d => !d.parentId);
+                const groups = [];
+
+                mains.forEach(main => {
+                    const isMainArchived = !!main.isArchived;
+                    if (filterStatus === 'Archived' && !isMainArchived) return;
+                    if (filterStatus !== 'Archived' && isMainArchived) return;
+
+                    const children = enrichedData.filter(d => String(d.parentId) === String(main.id));
+                    const matchesSearch = 
+                        main.accountId?.toLowerCase().includes(term) || main.ign?.toLowerCase().includes(term) ||
+                        children.some(c => c.ign?.toLowerCase().includes(term) || c.item?.toLowerCase().includes(term));
+                    
+                    if (term && !matchesSearch) return;
+
+                    const filteredMain = (filterStatus === 'All' || filterStatus === 'Archived' || main.status === filterStatus) ? main : null;
+                    const filteredChildren = children.filter(c => filterStatus === 'All' || filterStatus === 'Archived' || c.status === filterStatus);
+
+                    if (filteredMain || filteredChildren.length > 0) {
+                        groups.push({ main, children: filteredChildren });
+                    }
+                });
+                return groups;
+            }, [enrichedData, searchTerm, filterStatus]);
+
+            // Pagination Splitting
+            const totalPages = Math.max(1, Math.ceil(displayGroups.length / itemsPerPage));
+            const paginatedGroups = displayGroups.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+            useEffect(() => {
+                if (currentPage > totalPages) setCurrentPage(1);
+            }, [filterStatus, searchTerm, totalPages]);
+
+            return (
+                <div className="min-h-screen p-4 md:p-6 lg:p-8 flex flex-col gap-6">
+                    {/* Top Header Navigation */}
+                    <header className="flex flex-col md:flex-row justify-between items-center gap-4 animate-fade-in">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                                <i className="fa-solid fa-bolt text-2xl text-white"></i>
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+                                    FN Manager Pro
+                                    {hasCloud && (
+                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700">
+                                            <div className={`w-2 h-2 rounded-full ${cloudUser ? (isSyncing ? 'bg-blue-400 animate-pulse' : 'bg-green-500') : 'bg-red-500'}`}></div>
+                                            <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">
+                                                {cloudUser ? (isSyncing ? 'Syncing...' : 'Cloud Active') : 'Local Only'}
+                                            </span>
+                                        </div>
+                                    )}
+                                </h1>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <button onClick={() => setDataManagerOpen(true)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-semibold transition-all shadow-sm border border-slate-700 flex items-center gap-2">
+                                <i className="fa-solid fa-database text-purple-400"></i> Data Hub
+                            </button>
+                            <button onClick={() => setModalConfig({ isOpen: true, item: null, parentId: null })} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center gap-2">
+                                <i className="fa-solid fa-plus"></i> New Account
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Dashboard Metrics */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
+                        <MetricCard title="Total DB Accounts" value={metrics.accounts} icon="fa-gamepad" color="text-purple-400" />
+                        <MetricCard title="Active In Stock" value={metrics.stock} icon="fa-box" color="text-blue-400" />
+                        <MetricCard title="Active Pending" value={metrics.pending} icon="fa-clock" color="text-yellow-400" />
+                        <MetricCard title="Active Done" value={metrics.done} icon="fa-check-circle" color="text-green-400" />
+                        <MetricCard title="All-Time V-Bucks" value={metrics.totalAvailable.toLocaleString()} icon="fa-coins" color="text-cyan-400" />
+                        <MetricCard title="All-Time Remain" value={metrics.remain.toLocaleString()} icon="fa-wallet" color={metrics.remain < 0 ? 'text-red-400' : 'text-emerald-400'} />
+                    </div>
+
+                    {/* Main Interface */}
+                    <div className="glass-panel rounded-2xl flex flex-col flex-grow shadow-2xl overflow-hidden animate-fade-in" style={{animationDelay: '0.2s'}}>
+                        
+                        {/* Toolbar / Filters */}
+                        <div className="p-4 border-b border-slate-700/50 flex flex-col lg:flex-row gap-4 bg-slate-800/40 items-center justify-between">
+                            <div className="relative w-full lg:max-w-md">
+                                <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" placeholder="Search ID, IGN, or Skin..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full bg-slate-900/80 border border-slate-700 text-sm rounded-lg py-2.5 pl-10 pr-4 focus:ring-2 focus:ring-blue-500 outline-none text-slate-200 transition-all" />
+                            </div>
+                            <div className="flex flex-wrap gap-2 bg-slate-900/50 p-1.5 rounded-lg border border-slate-800">
+                                {['All', 'Stock', 'Pending', 'Done', 'Archived'].map(status => (
+                                    <button key={status} onClick={() => { setFilterStatus(status); setCurrentPage(1); }}
+                                        className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${filterStatus === status ? 'bg-blue-600 text-white shadow-sm' : status === 'Archived' ? 'text-purple-400 hover:bg-slate-800' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
+                                        {status === 'Archived' && <i className="fa-solid fa-box-archive mr-1.5"></i>}
+                                        {status}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Data Table */}
+                        <div className="overflow-x-auto flex-grow min-h-[400px]">
+                            <table className="w-full text-left border-collapse whitespace-nowrap">
+                                <thead>
+                                    <tr className="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider font-semibold border-b border-slate-700">
+                                        <th className="p-4 w-1/6">Fortnite ID</th>
+                                        <th className="p-4 text-right">Available</th>
+                                        <th className="p-4 text-right">Ordered</th>
+                                        <th className="p-4 text-right">Remain</th>
+                                        <th className="p-4">Buyer IGN</th>
+                                        <th className="p-4">Skin / Bundle</th>
+                                        <th className="p-4">Date</th>
+                                        <th className="p-4">Status</th>
+                                        <th className="p-4">Contact</th>
+                                        <th className="p-4 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm">
+                                    {paginatedGroups.length === 0 ? (
+                                        <tr><td colSpan="10" className="p-16 text-center text-slate-500 font-medium">
+                                            <i className="fa-solid fa-folder-open text-5xl mb-4 opacity-30 block"></i> No records found. Try adjusting filters or adding data.
+                                        </td></tr>
+                                    ) : paginatedGroups.map((group) => (
+                                        <React.Fragment key={group.main ? group.main.id : Math.random()}>
+                                            {/* Main Account Row */}
+                                            {group.main && (
+                                                <tr className={`border-b border-slate-700/30 hover:bg-slate-800/60 transition-colors group ${group.main.isArchived ? 'opacity-60 bg-slate-900/50' : 'bg-slate-800/20'}`}>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-bold text-white tracking-wide">{group.main.accountId}</span>
+                                                            <button onClick={() => { navigator.clipboard.writeText(group.main.accountId); showToast("ID Copied!"); }} className="text-slate-500 hover:text-blue-400"><i className="fa-regular fa-copy"></i></button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-right font-bold text-slate-300 text-lg">{group.main.availableVb ? parseNum(group.main.availableVb).toLocaleString() : '-'}</td>
+                                                    <td className="p-4 text-right">
+                                                        {group.main.orderVb ? <span className="text-orange-400 font-bold text-lg drop-shadow-sm">{parseNum(group.main.orderVb).toLocaleString()}</span> : '-'}
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            <span className={`font-bold text-lg drop-shadow-sm ${group.main._computedRemain < 0 ? 'text-red-400' : 'text-cyan-400'}`}>
+                                                                {group.main._computedRemain?.toLocaleString()}
+                                                            </span>
+                                                            {parseNum(group.main.availableVb) > 0 && (
+                                                                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden flex shadow-inner">
+                                                                    <div className={`h-full ${group.main._computedRemain < 0 ? 'bg-red-500' : 'bg-cyan-400'}`} style={{width: `${Math.min(100, Math.max(0, (group.main._computedRemain / parseNum(group.main.availableVb)) * 100))}%`}}></div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 font-medium text-slate-200">{group.main.ign || '-'}</td>
+                                                    <td className="p-4 text-slate-300 truncate max-w-[150px]">{group.main.item || '-'}</td>
+                                                    <td className="p-4 text-slate-400 text-xs">{group.main.date || '-'}</td>
+                                                    <td className="p-4"><StatusBadge status={group.main.status} isArchived={group.main.isArchived} /></td>
+                                                    <td className="p-4 text-blue-400 font-medium">{group.main.tgId || '-'}</td>
+                                                    <td className="p-4 text-right">
+                                                        <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => toggleArchive(group.main.id)} className={`p-2 rounded-lg transition-colors ${group.main.isArchived ? 'text-green-400 hover:bg-green-400/20' : 'text-slate-400 hover:text-purple-400 hover:bg-purple-400/20'}`} title={group.main.isArchived ? "Restore Order" : "Archive Order"}>
+                                                                <i className={`fa-solid ${group.main.isArchived ? 'fa-box-open' : 'fa-box-archive'}`}></i>
+                                                            </button>
+                                                            {!group.main.isArchived && <button onClick={() => setModalConfig({ isOpen: true, item: null, parentId: group.main.id })} className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-400/20 rounded-lg"><i className="fa-solid fa-code-branch"></i></button>}
+                                                            <button onClick={() => setModalConfig({ isOpen: true, item: group.main, parentId: null })} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"><i className="fa-solid fa-pen"></i></button>
+                                                            <button onClick={() => handleDelete(group.main.id)} className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/20 rounded-lg"><i className="fa-solid fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+
+                                            {/* Sub-order Rows */}
+                                            {group.children.map(child => (
+                                                <tr key={child.id} className={`border-b border-slate-700/20 hover:bg-slate-800/60 transition-colors group ${child.isArchived ? 'opacity-50 bg-slate-900/80' : 'bg-slate-900/30'}`}>
+                                                    <td className="p-4 pl-8 text-slate-500 border-l-2 border-blue-500/20"><i className="fa-solid fa-level-up-alt fa-rotate-90 mr-2 text-xs"></i> <span className="text-[10px] tracking-wider uppercase">Sub</span></td>
+                                                    <td className="p-4"></td>
+                                                    <td className="p-4 text-right"><span className="text-orange-400/90 font-semibold text-base">{child.orderVb ? parseNum(child.orderVb).toLocaleString() : '-'}</span></td>
+                                                    <td className="p-4"></td>
+                                                    <td className="p-4 font-medium text-slate-200">{child.ign || '-'}</td>
+                                                    <td className="p-4 text-slate-300 truncate max-w-[150px]">{child.item || '-'}</td>
+                                                    <td className="p-4 text-slate-400 text-xs">{child.date || '-'}</td>
+                                                    <td className="p-4"><StatusBadge status={child.status} /></td>
+                                                    <td className="p-4 text-blue-400 font-medium">{child.tgId || '-'}</td>
+                                                    <td className="p-4 text-right">
+                                                        <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                                            <button onClick={() => setModalConfig({ isOpen: true, item: child, parentId: child.parentId })} className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"><i className="fa-solid fa-pen"></i></button>
+                                                            <button onClick={() => handleDelete(child.id)} className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/20 rounded-lg"><i className="fa-solid fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination Footer */}
+                        {totalPages > 1 && (
+                            <div className="p-4 border-t border-slate-700/50 bg-slate-800/40 flex justify-between items-center">
+                                <span className="text-sm text-slate-400 font-medium">Showing Page <span className="text-white">{currentPage}</span> of {totalPages}</span>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-1.5 bg-slate-700 disabled:opacity-50 hover:bg-slate-600 rounded text-sm font-bold transition-colors"><i className="fa-solid fa-chevron-left"></i> Prev</button>
+                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-1.5 bg-slate-700 disabled:opacity-50 hover:bg-slate-600 rounded text-sm font-bold transition-colors">Next <i className="fa-solid fa-chevron-right"></i></button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Form Modal */}
+                    {modalConfig.isOpen && (
+                        <FormModal item={modalConfig.item} isSubOrder={!!modalConfig.parentId} onClose={() => setModalConfig({ isOpen: false, item: null, parentId: null })} onSave={handleSave} />
+                    )}
+
+                    {/* Data Manager Modal */}
+                    {dataManagerOpen && (
+                        <DataManager data={data} updateDatabase={updateDatabase} onClose={() => setDataManagerOpen(false)} showToast={showToast} cloudUser={cloudUser} pullFromCloudBackup={pullFromCloudBackup} isSyncing={isSyncing} />
+                    )}
+
+                    {/* Toast Notification */}
+                    {toast && (
+                        <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-xl shadow-2xl font-bold border flex items-center gap-3 animate-fade-in z-50 ${toast.type === 'warning' ? 'bg-red-900/90 border-red-500 text-red-100' : 'bg-emerald-900/90 border-emerald-500 text-emerald-100'}`}>
+                            <i className={`fa-solid ${toast.type === 'warning' ? 'fa-triangle-exclamation' : 'fa-check-circle'}`}></i>
+                            {toast.message}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- Sub Components ---
+
+        function MetricCard({ title, value, icon, color }) {
+            return (
+                <div className="bg-slate-800/40 border border-slate-700/50 p-4 rounded-xl flex flex-col justify-between hover:bg-slate-800 transition-colors group">
+                    <div className="flex justify-between items-start mb-1">
+                        <span className="text-slate-400 text-[10px] sm:text-[11px] font-bold uppercase tracking-widest">{title}</span>
+                        <i className={`fa-solid ${icon} ${color} opacity-70 text-lg group-hover:scale-110 transition-transform`}></i>
+                    </div>
+                    <div className={`text-xl sm:text-2xl font-black tracking-tight ${color}`}>{value}</div>
+                </div>
+            );
+        }
+
+        function StatusBadge({ status, isArchived }) {
+            if (isArchived) return <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20"><i className="fa-solid fa-box-archive"></i> Archived</span>;
+            const config = {
+                'Done': { c: 'text-green-400 bg-green-400/10 border-green-500/20', i: 'fa-check' },
+                'Pending': { c: 'text-yellow-400 bg-yellow-400/10 border-yellow-500/20', i: 'fa-clock' },
+                'Stock': { c: 'text-blue-400 bg-blue-400/10 border-blue-500/20', i: 'fa-box' }
+            }[status] || { c: 'text-slate-400 bg-slate-800', i: 'fa-circle' };
+            
+            return <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 ${config.c}`}><i className={`fa-solid ${config.i}`}></i> {status}</span>;
+        }
+
+        // Form Modal
+        function FormModal({ item, isSubOrder, onClose, onSave }) {
+            const [formData, setFormData] = useState(item || { accountId: '', availableVb: '', ign: '', orderVb: '', date: '', item: '', status: 'Stock', tgId: '' });
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-fade-in">
+                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/40">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-3">
+                                {item ? 'Edit Record' : (isSubOrder ? 'New Sub-Order' : 'New Account')}
+                                {isSubOrder && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded uppercase tracking-wider font-bold">Attached</span>}
+                            </h2>
+                            <button onClick={onClose} type="button" className="text-slate-400 hover:text-white p-1"><i className="fa-solid fa-times text-xl"></i></button>
+                        </div>
+                        <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                {!isSubOrder && (
+                                    <>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Fortnite ID</label>
+                                            <input type="text" required value={formData.accountId} onChange={(e)=>setFormData({...formData, accountId: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" placeholder="e.g. FNNEW6k.1" />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Available V-Bucks</label>
+                                            <input type="text" required value={formData.availableVb} onChange={(e)=>setFormData({...formData, availableVb: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" placeholder="e.g. 6000" />
+                                        </div>
+                                        <div className="col-span-full border-t border-slate-800 my-1"></div>
+                                    </>
+                                )}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</label>
+                                    <select value={formData.status} onChange={(e)=>setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none">
+                                        <option value="Stock">📦 In Stock (Unused)</option>
+                                        <option value="Pending">⏳ Pending (To Gift)</option>
+                                        <option value="Done">✅ Done (Gifted)</option>
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ordered V-Bucks</label>
+                                    <input type="text" value={formData.orderVb} onChange={(e)=>setFormData({...formData, orderVb: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-orange-400 focus:border-blue-500 outline-none" placeholder="e.g. 3200" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Buyer IGN</label>
+                                    <input type="text" value={formData.ign} onChange={(e)=>setFormData({...formData, ign: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skin / Bundle</label>
+                                    <input type="text" value={formData.item} onChange={(e)=>setFormData({...formData, item: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gift Date</label>
+                                    <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-slate-300 focus:border-blue-500 outline-none" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Telegram ID</label>
+                                    <input type="text" value={formData.tgId} onChange={(e)=>setFormData({...formData, tgId: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-blue-400 focus:border-blue-500 outline-none" />
+                                </div>
+                            </div>
+                            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-800">
+                                <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-lg font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all">Cancel</button>
+                                <button type="submit" className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-white shadow-lg transition-all">Save Record</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Data Manager Modal (Backup/Restore/CSV)
+        function DataManager({ data, updateDatabase, onClose, showToast, cloudUser, pullFromCloudBackup, isSyncing }) {
+            const csvInputRef = useRef(null);
+            const jsonInputRef = useRef(null);
+
+            // Export JSON
+            const exportJSON = () => {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `FN_DB_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+            };
+
+            // Import JSON
+            const handleJSONImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const parsed = JSON.parse(evt.target.result);
+                        if (Array.isArray(parsed) && confirm(`DANGER: Restoring this JSON will replace ALL current data with ${parsed.length} records. Continue?`)) {
+                            updateDatabase(parsed);
+                            showToast("JSON Database Restored Successfully!");
+                            onClose();
+                        }
+                    } catch(err) { showToast("Invalid JSON file.", "warning"); }
+                    e.target.value = null;
+                };
+                reader.readAsText(file);
+            };
+
+            // Export CSV (Maintains Parent/Child layout visually in Excel)
+            const exportCSV = () => {
+                const rows = [["Fortnite ID", "Available V-Bucks", "Remain V-Bucks", "IGN", "Order V-Bucks", "Gift Send Date", "Skin / Bundle", "Status", "TG ID"].join(',')];
+                const mains = data.filter(d => !d.parentId);
+                mains.forEach(main => {
+                    const used = data.filter(d => String(d.parentId) === String(main.id)).reduce((s, c) => s + parseNum(c.orderVb), parseNum(main.orderVb));
+                    const rem = parseNum(main.availableVb) - used;
+                    rows.push([`"${main.accountId||''}"`, main.availableVb||'', rem, `"${main.ign||''}"`, main.orderVb||'', `"${main.date||''}"`, `"${main.item||''}"`, `"${main.status||''}"`, `"${main.tgId||''}"`].join(','));
+                    data.filter(d => String(d.parentId) === String(main.id)).forEach(child => {
+                        rows.push([`""`, `""`, `""`, `"${child.ign||''}"`, child.orderVb||'', `"${child.date||''}"`, `"${child.item||''}"`, `"${child.status||''}"`, `"${child.tgId||''}"`].join(','));
+                    });
+                });
+                const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `FN_CSV_Export_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+            };
+
+            // Import CSV
+            const handleCSVImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (!confirm("Importing CSV will append/overwrite data. Ensure it's the correct format. Continue?")) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const rows = robustCSVParse(event.target.result);
+                    let hIdx = rows.findIndex(r => r.some(c => c.toLowerCase().includes('fortnite id')));
+                    if(hIdx === -1) { showToast("Invalid CSV format", "warning"); return; }
+
+                    const h = rows[hIdx].map(c => c.toLowerCase());
+                    const idx = { fnId: h.findIndex(c=>c.includes('fortnite id')), avail: h.findIndex(c=>c.includes('available')), ign: h.findIndex(c=>c==='ign'||c.includes('ign')), order: h.findIndex(c=>c.includes('order')), date: h.findIndex(c=>c.includes('date')), item: h.findIndex(c=>c.includes('skin')), status: h.findIndex(c=>c==='status'), tg: h.findIndex(c=>c.includes('tg')) };
+
+                    const newData = []; let currentParentId = null;
+                    for(let i = hIdx + 1; i < rows.length; i++) {
+                        const c = rows[i]; if(c.length <= Math.max(...Object.values(idx).filter(v=>v!==-1))) continue;
+                        const sGet = (ind) => (ind !== -1 && c[ind]) ? c[ind] : '';
+                        
+                        const acc = sGet(idx.fnId), ign = sGet(idx.ign), itm = sGet(idx.item), ord = sGet(idx.order), rawStat = sGet(idx.status).toLowerCase();
+                        if(acc.toLowerCase().includes('total') || (!acc && !ign && !itm && !ord)) continue;
+
+                        let stat = 'Stock';
+                        if(rawStat.includes('done')) stat = 'Done'; else if(rawStat.includes('pending') || (!rawStat && ign)) stat = 'Pending';
+
+                        const rec = { id: Date.now().toString()+'-'+i, orderVb: ord, ign, item: itm, date: sGet(idx.date), status: stat, tgId: sGet(idx.tg) };
+                        if (acc) { rec.accountId = acc; rec.availableVb = sGet(idx.avail); currentParentId = rec.id; } 
+                        else if (currentParentId) { rec.parentId = currentParentId; } else continue;
+                        newData.push(rec);
+                    }
+                    updateDatabase([...newData, ...data]); // Append new data
+                    showToast(`Imported ${newData.length} records!`);
+                    onClose();
+                };
+                reader.readAsText(file);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b border-slate-800 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-white"><i className="fa-solid fa-database text-purple-400 mr-2"></i> Data Hub</h2>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
+                        </div>
+                        <div className="p-6 space-y-8">
+                            
+                            {/* JSON Backup Section */}
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">System Backup (Recommended)</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={exportJSON} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-white transition-all"><i className="fa-solid fa-download text-emerald-400 mr-2"></i> Download Full Backup (.json)</button>
+                                    <input type="file" accept=".json" className="hidden" ref={jsonInputRef} onChange={handleJSONImport} />
+                                    <button onClick={() => jsonInputRef.current.click()} className="flex-1 py-3 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded-xl font-semibold text-red-400 transition-all"><i className="fa-solid fa-upload mr-2"></i> Restore JSON</button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">JSON preserves exact system state, including parent/child IDs and archives.</p>
+                            </div>
+
+                            {/* CSV Section */}
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Excel / Spreadsheet</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={exportCSV} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-white transition-all"><i className="fa-solid fa-file-csv text-blue-400 mr-2"></i> Export to CSV</button>
+                                    <input type="file" accept=".csv" className="hidden" ref={csvInputRef} onChange={handleCSVImport} />
+                                    <button onClick={() => csvInputRef.current.click()} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-slate-300 transition-all"><i className="fa-solid fa-file-import mr-2"></i> Import CSV</button>
+                                </div>
+                            </div>
+
+                            {/* Cloud Section */}
+                            <div className="pt-4 border-t border-slate-800">
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Cloud Sync (Secondary)</h3>
+                                {cloudUser ? (
+                                    <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl border border-slate-700">
+                                        <div>
+                                            <div className="text-white font-bold mb-1"><i className="fa-solid fa-cloud text-blue-400 mr-1"></i> Connected</div>
+                                            <div className="text-xs text-slate-400">Data autosaves locally and pushes to cloud.</div>
+                                        </div>
+                                        <button onClick={() => pullFromCloudBackup(cloudUser, true)} disabled={isSyncing} className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm font-bold hover:bg-blue-600/40 disabled:opacity-50">
+                                            {isSyncing ? 'Syncing...' : 'Force Pull Cloud'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 rounded-xl border border-dashed border-slate-600 text-slate-500 text-center text-sm font-medium">Cloud sync is currently inactive. Local Storage is safe.</div>
+                                )}
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = window.ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
+    </script>
+</body>
+</html>
