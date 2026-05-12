@@ -41,7 +41,7 @@
     </script>
     <style>
         /* Modern Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
@@ -67,11 +67,11 @@
                 if (this.state.hasError) {
                     return (
                         <div className="min-h-screen flex items-center justify-center p-4">
-                            <div className="bg-red-900/30 border border-red-500/50 p-8 rounded-2xl max-w-lg text-center">
+                            <div className="bg-red-900/30 border border-red-500/50 p-8 rounded-2xl max-w-lg text-center shadow-2xl">
                                 <i className="fa-solid fa-triangle-exclamation text-5xl text-red-400 mb-4"></i>
                                 <h2 className="text-2xl font-bold text-white mb-2">System Recovered from Crash</h2>
-                                <p className="text-red-200 mb-6 text-sm">A piece of data was corrupted. Your database is safe, but the current view crashed.</p>
-                                <button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold">Reload Dashboard</button>
+                                <p className="text-red-200 mb-6 text-sm">A piece of data encountered an error. Your database is safe, but the view crashed.</p>
+                                <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-lg transition-all">Reload Dashboard</button>
                             </div>
                         </div>
                     );
@@ -131,6 +131,18 @@
             const hasCloud = typeof __firebase_config !== 'undefined' && __firebase_config;
 
             const itemsPerPage = 20;
+            const localDataRef = useRef(data);
+
+            // Maintain ref to current data to avoid sync loopbacks
+            useEffect(() => {
+                localDataRef.current = data;
+            }, [data]);
+
+            // --- Handlers & Helpers ---
+            const showToast = useCallback((message, type = 'success') => {
+                setToast({ message, type });
+                setTimeout(() => setToast(null), 3500);
+            }, []);
 
             // --- Database Update Engine ---
             const updateDatabase = useCallback((newData, skipCloud = false) => {
@@ -139,7 +151,7 @@
                 if (!skipCloud) pushToCloudBackup(newData);
             }, [cloudUser]);
 
-            // --- Optional Cloud Layer (Dynamic Imports avoid Babel compilation issues) ---
+            // --- Optional Cloud Layer ---
             useEffect(() => {
                 if (!hasCloud) return;
                 const initFirebase = async () => {
@@ -158,13 +170,43 @@
                         
                         auth.onAuthStateChanged((u) => {
                             setCloudUser(u);
-                            // Auto-pull if local is empty
-                            if (u && data.length === 0) pullFromCloudBackup(u);
                         });
                     } catch (e) { console.warn("Cloud connection skipped/failed"); }
                 };
                 initFirebase();
             }, []);
+
+            // Auto-Sync Realtime Listener
+            useEffect(() => {
+                if (!hasCloud || !cloudUser) return;
+                let unsubscribe;
+                
+                const setupRealtimeSync = async () => {
+                    try {
+                        const { getFirestore, doc, onSnapshot } = await import('firebase/firestore');
+                        const db = getFirestore();
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fn-manager';
+                        const docRef = doc(db, 'artifacts', appId, 'users', cloudUser.uid, 'backup', 'latest');
+                        
+                        unsubscribe = onSnapshot(docRef, (snapshot) => {
+                            if (snapshot.exists() && snapshot.data().payload) {
+                                const cloudDataStr = snapshot.data().payload;
+                                const localDataStr = JSON.stringify(localDataRef.current);
+                                
+                                // If cloud has different data, another device updated it
+                                if (cloudDataStr !== localDataStr) {
+                                    const cloudData = JSON.parse(cloudDataStr);
+                                    updateDatabase(cloudData, true); // true = don't push back up
+                                    showToast("Data auto-synced from cloud!");
+                                }
+                            }
+                        }, (error) => console.error("Realtime sync error:", error));
+                    } catch (e) { console.warn("Could not setup realtime sync"); }
+                };
+                
+                setupRealtimeSync();
+                return () => { if (unsubscribe) unsubscribe(); };
+            }, [cloudUser, updateDatabase, showToast]);
 
             const pushToCloudBackup = async (payload) => {
                 if (!hasCloud || !cloudUser || !navigator.onLine) return;
@@ -192,19 +234,15 @@
                     
                     if (snapshot.exists() && snapshot.data().payload) {
                         const cloudData = JSON.parse(snapshot.data().payload);
-                        if (force || data.length === 0) {
-                            updateDatabase(cloudData, true); // Skip pushing back
+                        if (force || localDataRef.current.length === 0) {
+                            updateDatabase(cloudData, true); 
                             showToast("Restored from Cloud Backup!");
                         }
+                    } else {
+                        showToast("No cloud backup found.", "warning");
                     }
                 } catch(e) { showToast("Cloud pull failed", "warning"); }
                 setIsSyncing(false);
-            };
-
-            // --- Handlers & Helpers ---
-            const showToast = (message, type = 'success') => {
-                setToast({ message, type });
-                setTimeout(() => setToast(null), 3000);
             };
 
             const handleSave = (formData) => {
@@ -306,14 +344,14 @@
                     {/* Top Header Navigation */}
                     <header className="flex flex-col md:flex-row justify-between items-center gap-4 animate-fade-in">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
                                 <i className="fa-solid fa-bolt text-2xl text-white"></i>
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
                                     FN Manager Pro
                                     {hasCloud && (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700">
+                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700 shadow-inner">
                                             <div className={`w-2 h-2 rounded-full ${cloudUser ? (isSyncing ? 'bg-blue-400 animate-pulse' : 'bg-green-500') : 'bg-red-500'}`}></div>
                                             <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">
                                                 {cloudUser ? (isSyncing ? 'Syncing...' : 'Cloud Active') : 'Local Only'}
@@ -387,14 +425,14 @@
                                             <i className="fa-solid fa-folder-open text-5xl mb-4 opacity-30 block"></i> No records found. Try adjusting filters or adding data.
                                         </td></tr>
                                     ) : paginatedGroups.map((group) => (
-                                        <React.Fragment key={group.main ? group.main.id : Math.random()}>
+                                        <React.Fragment key={group.main.id}>
                                             {/* Main Account Row */}
                                             {group.main && (
                                                 <tr className={`border-b border-slate-700/30 hover:bg-slate-800/60 transition-colors group ${group.main.isArchived ? 'opacity-60 bg-slate-900/50' : 'bg-slate-800/20'}`}>
                                                     <td className="p-4">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-bold text-white tracking-wide">{group.main.accountId}</span>
-                                                            <button onClick={() => { navigator.clipboard.writeText(group.main.accountId); showToast("ID Copied!"); }} className="text-slate-500 hover:text-blue-400"><i className="fa-regular fa-copy"></i></button>
+                                                            <button onClick={() => { navigator.clipboard.writeText(group.main.accountId); showToast("ID Copied!"); }} className="text-slate-500 hover:text-blue-400 transition-colors"><i className="fa-regular fa-copy"></i></button>
                                                         </div>
                                                     </td>
                                                     <td className="p-4 text-right font-bold text-slate-300 text-lg">{group.main.availableVb ? parseNum(group.main.availableVb).toLocaleString() : '-'}</td>
@@ -441,7 +479,7 @@
                                                     <td className="p-4 font-medium text-slate-200">{child.ign || '-'}</td>
                                                     <td className="p-4 text-slate-300 truncate max-w-[150px]">{child.item || '-'}</td>
                                                     <td className="p-4 text-slate-400 text-xs">{child.date || '-'}</td>
-                                                    <td className="p-4"><StatusBadge status={child.status} /></td>
+                                                    <td className="p-4"><StatusBadge status={child.status} isArchived={child.isArchived} /></td>
                                                     <td className="p-4 text-blue-400 font-medium">{child.tgId || '-'}</td>
                                                     <td className="p-4 text-right">
                                                         <div className="flex justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
@@ -510,7 +548,7 @@
                 'Done': { c: 'text-green-400 bg-green-400/10 border-green-500/20', i: 'fa-check' },
                 'Pending': { c: 'text-yellow-400 bg-yellow-400/10 border-yellow-500/20', i: 'fa-clock' },
                 'Stock': { c: 'text-blue-400 bg-blue-400/10 border-blue-500/20', i: 'fa-box' }
-            }[status] || { c: 'text-slate-400 bg-slate-800', i: 'fa-circle' };
+            }[status] || { c: 'text-slate-400 bg-slate-800 border-slate-600', i: 'fa-circle' };
             
             return <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 ${config.c}`}><i className={`fa-solid ${config.i}`}></i> {status}</span>;
         }
@@ -527,7 +565,7 @@
                                 {item ? 'Edit Record' : (isSubOrder ? 'New Sub-Order' : 'New Account')}
                                 {isSubOrder && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded uppercase tracking-wider font-bold">Attached</span>}
                             </h2>
-                            <button onClick={onClose} type="button" className="text-slate-400 hover:text-white p-1"><i className="fa-solid fa-times text-xl"></i></button>
+                            <button onClick={onClose} type="button" className="text-slate-400 hover:text-white p-1 transition-colors"><i className="fa-solid fa-times text-xl"></i></button>
                         </div>
                         <form onSubmit={(e) => { e.preventDefault(); onSave(formData); }} className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -535,18 +573,18 @@
                                     <>
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Fortnite ID</label>
-                                            <input type="text" required value={formData.accountId} onChange={(e)=>setFormData({...formData, accountId: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" placeholder="e.g. FNNEW6k.1" />
+                                            <input type="text" required value={formData.accountId} onChange={(e)=>setFormData({...formData, accountId: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none transition-all" placeholder="e.g. FNNEW6k.1" />
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Available V-Bucks</label>
-                                            <input type="text" required value={formData.availableVb} onChange={(e)=>setFormData({...formData, availableVb: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" placeholder="e.g. 6000" />
+                                            <input type="text" required value={formData.availableVb} onChange={(e)=>setFormData({...formData, availableVb: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none transition-all" placeholder="e.g. 6000" />
                                         </div>
                                         <div className="col-span-full border-t border-slate-800 my-1"></div>
                                     </>
                                 )}
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status</label>
-                                    <select value={formData.status} onChange={(e)=>setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none">
+                                    <select value={formData.status} onChange={(e)=>setFormData({...formData, status: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none transition-all">
                                         <option value="Stock">📦 In Stock (Unused)</option>
                                         <option value="Pending">⏳ Pending (To Gift)</option>
                                         <option value="Done">✅ Done (Gifted)</option>
@@ -554,23 +592,23 @@
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ordered V-Bucks</label>
-                                    <input type="text" value={formData.orderVb} onChange={(e)=>setFormData({...formData, orderVb: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-orange-400 focus:border-blue-500 outline-none" placeholder="e.g. 3200" />
+                                    <input type="text" value={formData.orderVb} onChange={(e)=>setFormData({...formData, orderVb: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-orange-400 focus:border-blue-500 outline-none transition-all" placeholder="e.g. 3200" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Buyer IGN</label>
-                                    <input type="text" value={formData.ign} onChange={(e)=>setFormData({...formData, ign: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" />
+                                    <input type="text" value={formData.ign} onChange={(e)=>setFormData({...formData, ign: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none transition-all" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Skin / Bundle</label>
-                                    <input type="text" value={formData.item} onChange={(e)=>setFormData({...formData, item: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none" />
+                                    <input type="text" value={formData.item} onChange={(e)=>setFormData({...formData, item: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-white focus:border-blue-500 outline-none transition-all" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gift Date</label>
-                                    <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-slate-300 focus:border-blue-500 outline-none" />
+                                    <input type="date" value={formData.date} onChange={(e)=>setFormData({...formData, date: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-slate-300 focus:border-blue-500 outline-none transition-all" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Telegram ID</label>
-                                    <input type="text" value={formData.tgId} onChange={(e)=>setFormData({...formData, tgId: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-blue-400 focus:border-blue-500 outline-none" />
+                                    <input type="text" value={formData.tgId} onChange={(e)=>setFormData({...formData, tgId: e.target.value})} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 font-medium text-blue-400 focus:border-blue-500 outline-none transition-all" />
                                 </div>
                             </div>
                             <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-800">
@@ -633,16 +671,25 @@
             const handleCSVImport = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                if (!confirm("Importing CSV will append/overwrite data. Ensure it's the correct format. Continue?")) return;
+                if (!confirm("Importing CSV will append/overwrite data. Ensure it's the correct format. Continue?")) { e.target.value = null; return; }
 
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     const rows = robustCSVParse(event.target.result);
                     let hIdx = rows.findIndex(r => r.some(c => c.toLowerCase().includes('fortnite id')));
-                    if(hIdx === -1) { showToast("Invalid CSV format", "warning"); return; }
+                    if(hIdx === -1) { showToast("Invalid CSV format", "warning"); e.target.value = null; return; }
 
                     const h = rows[hIdx].map(c => c.toLowerCase());
-                    const idx = { fnId: h.findIndex(c=>c.includes('fortnite id')), avail: h.findIndex(c=>c.includes('available')), ign: h.findIndex(c=>c==='ign'||c.includes('ign')), order: h.findIndex(c=>c.includes('order')), date: h.findIndex(c=>c.includes('date')), item: h.findIndex(c=>c.includes('skin')), status: h.findIndex(c=>c==='status'), tg: h.findIndex(c=>c.includes('tg')) };
+                    const idx = { 
+                        fnId: h.findIndex(c=>c.includes('fortnite id')), 
+                        avail: h.findIndex(c=>c.includes('available')), 
+                        ign: h.findIndex(c=>c==='ign'||c.includes('ign')), 
+                        order: h.findIndex(c=>c.includes('order')), 
+                        date: h.findIndex(c=>c.includes('date')), 
+                        item: h.findIndex(c=>c.includes('skin')), 
+                        status: h.findIndex(c=>c==='status'), 
+                        tg: h.findIndex(c=>c.includes('tg')) 
+                    };
 
                     const newData = []; let currentParentId = null;
                     for(let i = hIdx + 1; i < rows.length; i++) {
@@ -669,10 +716,10 @@
 
             return (
                 <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden">
-                        <div className="p-5 border-b border-slate-800 flex justify-between items-center">
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-fade-in">
+                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/40">
                             <h2 className="text-xl font-bold text-white"><i className="fa-solid fa-database text-purple-400 mr-2"></i> Data Hub</h2>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white"><i className="fa-solid fa-times text-xl"></i></button>
+                            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><i className="fa-solid fa-times text-xl"></i></button>
                         </div>
                         <div className="p-6 space-y-8">
                             
@@ -701,12 +748,12 @@
                             <div className="pt-4 border-t border-slate-800">
                                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Cloud Sync (Secondary)</h3>
                                 {cloudUser ? (
-                                    <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl border border-slate-700">
+                                    <div className="flex items-center justify-between bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
                                         <div>
                                             <div className="text-white font-bold mb-1"><i className="fa-solid fa-cloud text-blue-400 mr-1"></i> Connected</div>
                                             <div className="text-xs text-slate-400">Data autosaves locally and pushes to cloud.</div>
                                         </div>
-                                        <button onClick={() => pullFromCloudBackup(cloudUser, true)} disabled={isSyncing} className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm font-bold hover:bg-blue-600/40 disabled:opacity-50">
+                                        <button onClick={() => pullFromCloudBackup(cloudUser, true)} disabled={isSyncing} className="px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg text-sm font-bold hover:bg-blue-600/40 disabled:opacity-50 transition-all">
                                             {isSyncing ? 'Syncing...' : 'Force Pull Cloud'}
                                         </button>
                                     </div>
