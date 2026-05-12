@@ -6,29 +6,18 @@
     <meta name="description" content="Fortnite V-Bucks & Account Management Dashboard">
     <title>FN Manager Pro | Production Dashboard</title>
     
-    <!-- Tailwind CSS for Styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- FontAwesome for Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
     
-    <!-- High-Speed React & ReactDOM via Cloudflare -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
     
-    <!-- Babel Standalone (Optimized caching) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js" crossorigin="anonymous"></script>
 
-    <!-- Importmap for Optional Firebase (Keeps global scope clean) -->
-    <script type="importmap">
-      {
-        "imports": {
-          "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
-          "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
-          "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
-        }
-      }
-    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
     <script>
         tailwind.config = {
@@ -40,15 +29,12 @@
         }
     </script>
     <style>
-        /* Modern Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
         body { font-family: 'Inter', 'Segoe UI', sans-serif; background-color: #0f172a; color: #f8fafc; overflow-y: scroll; }
         .glass-panel { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
-        
-        /* Smooth Fade In */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
     </style>
@@ -59,7 +45,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        // --- Error Boundary for Crash Prevention ---
+        // --- Error Boundary ---
         class ErrorBoundary extends React.Component {
             constructor(props) { super(props); this.state = { hasError: false, error: null }; }
             static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -69,9 +55,9 @@
                         <div className="min-h-screen flex items-center justify-center p-4">
                             <div className="bg-red-900/30 border border-red-500/50 p-8 rounded-2xl max-w-lg text-center shadow-2xl">
                                 <i className="fa-solid fa-triangle-exclamation text-5xl text-red-400 mb-4"></i>
-                                <h2 className="text-2xl font-bold text-white mb-2">System Recovered from Crash</h2>
-                                <p className="text-red-200 mb-6 text-sm">A piece of data encountered an error. Your database is safe, but the view crashed.</p>
-                                <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-lg transition-all">Reload Dashboard</button>
+                                <h2 className="text-2xl font-bold text-white mb-2">System Crash Prevented</h2>
+                                <p className="text-red-200 mb-6 text-sm">A piece of data triggered an error. Your database is safe.</p>
+                                <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-lg">Reload Dashboard</button>
                             </div>
                         </div>
                     );
@@ -87,14 +73,11 @@
             return Number(str) || 0;
         };
 
-        // Robust CSV Parser
         const robustCSVParse = (str) => {
-            const arr = [];
-            let quote = false;
+            const arr = []; let quote = false;
             for (let row = 0, col = 0, c = 0; c < str.length; c++) {
                 let cc = str[c], nc = str[c+1];
-                arr[row] = arr[row] || [];
-                arr[row][col] = arr[row][col] || '';
+                arr[row] = arr[row] || []; arr[row][col] = arr[row][col] || '';
                 if (cc == '"' && quote && nc == '"') { arr[row][col] += cc; ++c; continue; }
                 if (cc == '"') { quote = !quote; continue; }
                 if (cc == ',' && !quote) { ++col; continue; }
@@ -108,12 +91,11 @@
 
         // --- Core Application Component ---
         function App() {
-            // LocalStorage acts as Primary Source of Truth
             const [data, setData] = useState(() => {
                 try {
                     const local = localStorage.getItem('fnManagerData_prod');
                     if (local) return JSON.parse(local);
-                } catch(e) { console.error("Local data corrupt", e); }
+                } catch(e) {}
                 return [];
             });
 
@@ -128,11 +110,10 @@
             // Cloud Sync States
             const [syncKey, setSyncKey] = useState(() => localStorage.getItem('fnManagerSyncKey') || '');
             const [cloudUser, setCloudUser] = useState(null);
+            const [cloudError, setCloudError] = useState(null);
             const [isSyncing, setIsSyncing] = useState(false);
             
-            // 🚨========================================================================🚨
-            // 🚨 VERCEL CLOUD SETUP: Paste your Firebase Config here to enable sync!     🚨
-            // 🚨========================================================================🚨
+            // VERCEL FIREBASE CONFIG
             const userFirebaseConfig = {
                 apiKey: "AIzaSyDgeyPg5BVSV-nZxWZ3A9i28OiFHomXVuw",
                 authDomain: "fn-dashboard-b485a.firebaseapp.com",
@@ -142,18 +123,12 @@
                 appId: "1:1028327429415:web:6670a554a1956df0a9c502",
                 measurementId: "G-LWEKYXMKYE"
             };
-            
-            const hasCloud = (typeof __firebase_config !== 'undefined' && __firebase_config) || (userFirebaseConfig.apiKey && userFirebaseConfig.apiKey.length > 5);
 
             const itemsPerPage = 20;
             const localDataRef = useRef(data);
 
-            // Maintain ref to current data to avoid sync loopbacks
-            useEffect(() => {
-                localDataRef.current = data;
-            }, [data]);
+            useEffect(() => { localDataRef.current = data; }, [data]);
 
-            // --- Handlers & Helpers ---
             const showToast = useCallback((message, type = 'success') => {
                 setToast({ message, type });
                 setTimeout(() => setToast(null), 3500);
@@ -166,89 +141,81 @@
                 if (!skipCloud) pushToCloudBackup(newData);
             }, [cloudUser, syncKey]);
 
-            // --- Optional Cloud Layer ---
+            // --- Firebase Initialization (Using Compat Library) ---
             useEffect(() => {
-                if (!hasCloud) return;
-                const initFirebase = async () => {
-                    try {
-                        const { initializeApp } = await import('firebase/app');
-                        const { getAuth, signInAnonymously, signInWithCustomToken } = await import('firebase/auth');
-                        
-                        const configToUse = (userFirebaseConfig.apiKey && userFirebaseConfig.apiKey.length > 5) ? userFirebaseConfig : JSON.parse(__firebase_config);
-                        const app = initializeApp(configToUse);
-                        const auth = getAuth(app);
-                        
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && !userFirebaseConfig.apiKey) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                        
-                        auth.onAuthStateChanged((u) => {
-                            setCloudUser(u);
+                try {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(userFirebaseConfig);
+                    }
+                    
+                    // Attempt Anonymous Login
+                    firebase.auth().signInAnonymously()
+                        .then((userCredential) => {
+                            setCloudUser(userCredential.user);
+                            setCloudError(null);
+                        })
+                        .catch((error) => {
+                            console.error("Firebase Auth Error:", error);
+                            setCloudError(`Auth Failed: ${error.message}`);
                         });
-                    } catch (e) { console.warn("Cloud connection skipped/failed"); }
-                };
-                initFirebase();
+                } catch(e) {
+                    setCloudError("SDK Load Error. Check network.");
+                }
             }, []);
 
             // Auto-Sync Realtime Listener
             useEffect(() => {
-                if (!hasCloud || !cloudUser || !syncKey) return;
-                let unsubscribe;
+                if (!cloudUser || !syncKey) return;
                 
-                const setupRealtimeSync = async () => {
-                    try {
-                        const { getFirestore, doc, onSnapshot } = await import('firebase/firestore');
-                        const db = getFirestore();
-                        const appId = (userFirebaseConfig.projectId && userFirebaseConfig.projectId.length > 2) ? userFirebaseConfig.projectId : (typeof __app_id !== 'undefined' ? __app_id : 'fn-manager');
-                        
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey);
-                        
-                        unsubscribe = onSnapshot(docRef, (snapshot) => {
-                            if (snapshot.exists() && snapshot.data().payload) {
-                                const cloudDataStr = snapshot.data().payload;
-                                const localDataStr = JSON.stringify(localDataRef.current);
-                                
-                                if (cloudDataStr !== localDataStr) {
-                                    const cloudData = JSON.parse(cloudDataStr);
-                                    updateDatabase(cloudData, true); 
-                                    showToast("Data auto-synced from cloud!");
-                                }
-                            }
-                        }, (error) => console.error("Realtime sync error:", error));
-                    } catch (e) { console.warn("Could not setup realtime sync"); }
-                };
+                const db = firebase.firestore();
+                const appId = userFirebaseConfig.projectId;
+                const docRef = db.doc(`artifacts/${appId}/public_data/shared_rooms/${syncKey}`);
                 
-                setupRealtimeSync();
-                return () => { if (unsubscribe) unsubscribe(); };
+                const unsubscribe = docRef.onSnapshot((snapshot) => {
+                    if (snapshot.exists && snapshot.data().payload) {
+                        const cloudDataStr = snapshot.data().payload;
+                        const localDataStr = JSON.stringify(localDataRef.current);
+                        
+                        if (cloudDataStr !== localDataStr) {
+                            const cloudData = JSON.parse(cloudDataStr);
+                            updateDatabase(cloudData, true); 
+                            showToast("Data auto-synced from cloud!");
+                        }
+                    }
+                }, (error) => {
+                    console.error("Realtime sync error:", error);
+                    setCloudError(`Database Read Error: ${error.message}`);
+                });
+                
+                return () => unsubscribe();
             }, [cloudUser, syncKey, updateDatabase, showToast]);
 
             const pushToCloudBackup = async (payload) => {
-                if (!hasCloud || !cloudUser || !navigator.onLine || !syncKey) return;
+                if (!cloudUser || !navigator.onLine || !syncKey) return;
                 setIsSyncing(true);
                 try {
-                    const { getFirestore, doc, setDoc } = await import('firebase/firestore');
-                    const db = getFirestore();
-                    const appId = (userFirebaseConfig.projectId && userFirebaseConfig.projectId.length > 2) ? userFirebaseConfig.projectId : (typeof __app_id !== 'undefined' ? __app_id : 'fn-manager');
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey), {
+                    const db = firebase.firestore();
+                    const appId = userFirebaseConfig.projectId;
+                    await db.doc(`artifacts/${appId}/public_data/shared_rooms/${syncKey}`).set({
                         payload: JSON.stringify(payload),
                         timestamp: Date.now()
                     });
-                } catch(e) { console.error("Cloud push failed"); }
+                } catch(e) { 
+                    console.error("Cloud push failed", e); 
+                    setCloudError("Database Write Permission Denied.");
+                }
                 setIsSyncing(false);
             };
 
             const pullFromCloudBackup = async (userObj = cloudUser, force = false) => {
-                if (!hasCloud || !userObj || !syncKey) return showToast("Please set a Cloud Sync Passkey first", "warning");
+                if (!userObj || !syncKey) return showToast("Please set a Cloud Sync Passkey first", "warning");
                 setIsSyncing(true);
                 try {
-                    const { getFirestore, doc, getDoc } = await import('firebase/firestore');
-                    const db = getFirestore();
-                    const appId = (userFirebaseConfig.projectId && userFirebaseConfig.projectId.length > 2) ? userFirebaseConfig.projectId : (typeof __app_id !== 'undefined' ? __app_id : 'fn-manager');
-                    const snapshot = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'shared_rooms', syncKey));
+                    const db = firebase.firestore();
+                    const appId = userFirebaseConfig.projectId;
+                    const snapshot = await db.doc(`artifacts/${appId}/public_data/shared_rooms/${syncKey}`).get();
                     
-                    if (snapshot.exists() && snapshot.data().payload) {
+                    if (snapshot.exists && snapshot.data().payload) {
                         const cloudData = JSON.parse(snapshot.data().payload);
                         if (force || localDataRef.current.length === 0) {
                             updateDatabase(cloudData, true); 
@@ -257,10 +224,14 @@
                     } else {
                         showToast("No cloud backup found for this Passkey.", "warning");
                     }
-                } catch(e) { showToast("Cloud pull failed", "warning"); }
+                } catch(e) { 
+                    showToast("Cloud pull failed. Check permissions.", "warning"); 
+                    setCloudError("Database Read Permission Denied.");
+                }
                 setIsSyncing(false);
             };
 
+            // --- Handlers ---
             const handleSave = (formData) => {
                 let newData;
                 if (modalConfig.item) {
@@ -292,7 +263,7 @@
                 showToast(isArchiving ? 'Archived Completed Order' : 'Restored to Dashboard');
             };
 
-            // --- Computed Data & Filtering ---
+            // --- Computed Data ---
             const enrichedData = useMemo(() => {
                 return data.map(item => {
                     if (item.parentId) return item;
@@ -347,13 +318,10 @@
                 return groups;
             }, [enrichedData, searchTerm, filterStatus]);
 
-            // Pagination Splitting
             const totalPages = Math.max(1, Math.ceil(displayGroups.length / itemsPerPage));
             const paginatedGroups = displayGroups.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-            useEffect(() => {
-                if (currentPage > totalPages) setCurrentPage(1);
-            }, [filterStatus, searchTerm, totalPages]);
+            useEffect(() => { if (currentPage > totalPages) setCurrentPage(1); }, [filterStatus, searchTerm, totalPages]);
 
             return (
                 <div className="min-h-screen p-4 md:p-6 lg:p-8 flex flex-col gap-6">
@@ -366,20 +334,28 @@
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
                                     FN Manager Pro
-                                    {hasCloud && (
+                                    {cloudUser ? (
                                         <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700 shadow-inner">
-                                            <div className={`w-2 h-2 rounded-full ${cloudUser ? (isSyncing ? 'bg-blue-400 animate-pulse' : 'bg-green-500') : 'bg-red-500'}`}></div>
-                                            <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">
-                                                {cloudUser ? (isSyncing ? 'Syncing...' : 'Cloud Active') : 'Local Only'}
-                                            </span>
+                                            <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-blue-400 animate-pulse' : 'bg-green-500'}`}></div>
+                                            <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">Cloud Active</span>
+                                        </div>
+                                    ) : cloudError ? (
+                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-red-900/40 rounded-full border border-red-500/50 shadow-inner" title={cloudError}>
+                                            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                                            <span className="text-[10px] font-bold text-red-300 tracking-wider uppercase hidden sm:inline-block">Cloud Error</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700 shadow-inner">
+                                            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                                            <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">Connecting...</span>
                                         </div>
                                     )}
                                 </h1>
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-3">
-                            <button onClick={() => setDataManagerOpen(true)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-sm font-semibold transition-all shadow-sm border border-slate-700 flex items-center gap-2">
-                                <i className="fa-solid fa-database text-purple-400"></i> Data Hub
+                            <button onClick={() => setDataManagerOpen(true)} className={`px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm border ${cloudError ? 'border-red-500/50 text-red-400' : 'border-slate-700 text-slate-200'} flex items-center gap-2`}>
+                                <i className="fa-solid fa-database text-purple-400"></i> {cloudError ? 'Fix Cloud Config' : 'Data Hub'}
                             </button>
                             <button onClick={() => setModalConfig({ isOpen: true, item: null, parentId: null })} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center gap-2">
                                 <i className="fa-solid fa-plus"></i> New Account
@@ -536,6 +512,7 @@
                             onClose={() => setDataManagerOpen(false)} 
                             showToast={showToast} 
                             cloudUser={cloudUser} 
+                            cloudError={cloudError}
                             pullFromCloudBackup={pullFromCloudBackup} 
                             isSyncing={isSyncing} 
                             syncKey={syncKey}
@@ -582,7 +559,6 @@
             return <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1.5 ${config.c}`}><i className={`fa-solid ${config.i}`}></i> {status}</span>;
         }
 
-        // Form Modal
         function FormModal({ item, isSubOrder, onClose, onSave }) {
             const [formData, setFormData] = useState(item || { accountId: '', availableVb: '', ign: '', orderVb: '', date: '', item: '', status: 'Stock', tgId: '' });
 
@@ -650,18 +626,15 @@
             );
         }
 
-        // Data Manager Modal (Backup/Restore/CSV)
-        function DataManager({ data, updateDatabase, onClose, showToast, cloudUser, pullFromCloudBackup, isSyncing, syncKey, setSyncKey }) {
+        function DataManager({ data, updateDatabase, onClose, showToast, cloudUser, cloudError, pullFromCloudBackup, isSyncing, syncKey, setSyncKey }) {
             const csvInputRef = useRef(null);
             const jsonInputRef = useRef(null);
 
-            // Export JSON
             const exportJSON = () => {
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `FN_DB_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
             };
 
-            // Import JSON
             const handleJSONImport = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -670,9 +643,7 @@
                     try {
                         const parsed = JSON.parse(evt.target.result);
                         if (Array.isArray(parsed) && confirm(`DANGER: Restoring this JSON will replace ALL current data with ${parsed.length} records. Continue?`)) {
-                            updateDatabase(parsed);
-                            showToast("JSON Database Restored Successfully!");
-                            onClose();
+                            updateDatabase(parsed); showToast("JSON Database Restored Successfully!"); onClose();
                         }
                     } catch(err) { showToast("Invalid JSON file.", "warning"); }
                     e.target.value = null;
@@ -680,7 +651,6 @@
                 reader.readAsText(file);
             };
 
-            // Export CSV (Maintains Parent/Child layout visually in Excel)
             const exportCSV = () => {
                 const rows = [["Fortnite ID", "Available V-Bucks", "Remain V-Bucks", "IGN", "Order V-Bucks", "Gift Send Date", "Skin / Bundle", "Status", "TG ID"].join(',')];
                 const mains = data.filter(d => !d.parentId);
@@ -696,7 +666,6 @@
                 const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `FN_CSV_Export_${new Date().toISOString().split('T')[0]}.csv`; a.click();
             };
 
-            // Import CSV
             const handleCSVImport = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -710,14 +679,10 @@
 
                     const h = rows[hIdx].map(c => c.toLowerCase());
                     const idx = { 
-                        fnId: h.findIndex(c=>c.includes('fortnite id')), 
-                        avail: h.findIndex(c=>c.includes('available')), 
-                        ign: h.findIndex(c=>c==='ign'||c.includes('ign')), 
-                        order: h.findIndex(c=>c.includes('order')), 
-                        date: h.findIndex(c=>c.includes('date')), 
-                        item: h.findIndex(c=>c.includes('skin')), 
-                        status: h.findIndex(c=>c==='status'), 
-                        tg: h.findIndex(c=>c.includes('tg')) 
+                        fnId: h.findIndex(c=>c.includes('fortnite id')), avail: h.findIndex(c=>c.includes('available')), 
+                        ign: h.findIndex(c=>c==='ign'||c.includes('ign')), order: h.findIndex(c=>c.includes('order')), 
+                        date: h.findIndex(c=>c.includes('date')), item: h.findIndex(c=>c.includes('skin')), 
+                        status: h.findIndex(c=>c==='status'), tg: h.findIndex(c=>c.includes('tg')) 
                     };
 
                     const newData = []; let currentParentId = null;
@@ -736,7 +701,7 @@
                         else if (currentParentId) { rec.parentId = currentParentId; } else continue;
                         newData.push(rec);
                     }
-                    updateDatabase([...newData, ...data]); // Append new data
+                    updateDatabase([...newData, ...data]); 
                     showToast(`Imported ${newData.length} records!`);
                     onClose();
                 };
@@ -752,7 +717,6 @@
                         </div>
                         <div className="p-6 space-y-8">
                             
-                            {/* JSON Backup Section */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">System Backup (Recommended)</h3>
                                 <div className="flex gap-3">
@@ -763,7 +727,6 @@
                                 <p className="text-xs text-slate-500 mt-2">JSON preserves exact system state, including parent/child IDs and archives.</p>
                             </div>
 
-                            {/* CSV Section */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Excel / Spreadsheet</h3>
                                 <div className="flex gap-3">
@@ -773,15 +736,19 @@
                                 </div>
                             </div>
 
-                            {/* Cloud Section */}
                             <div className="pt-4 border-t border-slate-800">
                                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Cloud Sync (Cross-Device)</h3>
-                                {cloudUser ? (
+                                {cloudError ? (
+                                    <div className="p-4 rounded-xl border border-red-500/50 bg-red-900/20 text-red-400 text-sm font-medium">
+                                        <i className="fa-solid fa-triangle-exclamation mr-2"></i> Firebase Error: {cloudError}
+                                        <p className="text-xs text-red-300 mt-2">Make sure you enabled <b>Anonymous Authentication</b> and <b>Firestore Database</b> in your Firebase console.</p>
+                                    </div>
+                                ) : cloudUser ? (
                                     <div className="flex flex-col gap-3 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
                                         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                                             <div>
                                                 <div className="text-white font-bold mb-1"><i className="fa-solid fa-cloud text-blue-400 mr-1"></i> Sync Passkey</div>
-                                                <div className="text-xs text-slate-400">Enter the same secret passkey on your phone/PC to link them instantly.</div>
+                                                <div className="text-xs text-slate-400">Enter a secret passkey to link devices instantly.</div>
                                             </div>
                                             <div className="flex gap-2 w-full sm:w-auto">
                                                 <input 
@@ -799,7 +766,7 @@
                                         {!syncKey && <div className="text-xs text-amber-400 mt-1"><i className="fa-solid fa-triangle-exclamation"></i> You must enter a Passkey to sync data across browsers.</div>}
                                     </div>
                                 ) : (
-                                    <div className="p-4 rounded-xl border border-dashed border-slate-600 text-slate-500 text-center text-sm font-medium">Cloud sync is currently inactive. Please provide Firebase Config in code if hosting externally.</div>
+                                    <div className="p-4 rounded-xl border border-dashed border-slate-600 text-slate-500 text-center text-sm font-medium">Connecting to Cloud Server...</div>
                                 )}
                             </div>
 
