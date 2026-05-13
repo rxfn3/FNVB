@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Fortnite V-Bucks & Account Management Dashboard">
-    <title>FN Manager Pro | Live Cloud Edition</title>
+    <title>FN Manager Pro | GitHub Pages Edition</title>
     
     <!-- Tailwind CSS for Styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,23 +12,12 @@
     <!-- FontAwesome for Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" crossorigin="anonymous">
     
-    <!-- React & ReactDOM -->
+    <!-- High-Speed React & ReactDOM via Cloudflare -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
     
-    <!-- Babel Standalone -->
+    <!-- Babel Standalone (Optimized caching) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js" crossorigin="anonymous"></script>
-
-    <!-- Firebase Import Map for Native Cloud Support -->
-    <script type="importmap">
-      {
-        "imports": {
-          "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
-          "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
-          "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
-        }
-      }
-    </script>
 
     <script>
         tailwind.config = {
@@ -40,12 +29,15 @@
         }
     </script>
     <style>
+        /* Modern Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
         body { font-family: 'Inter', 'Segoe UI', sans-serif; background-color: #0f172a; color: #f8fafc; overflow-y: scroll; }
         .glass-panel { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        
+        /* Smooth Fade In */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
     </style>
@@ -53,30 +45,28 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import { initializeApp } from "firebase/app";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
-        const { useState, useEffect, useMemo, useRef, useCallback } = window.React;
-
-        // ============================================================================
-        // 🌐 LIVE CLOUD DATABASE CONFIGURATION
-        // ============================================================================
-        // If hosting on VERCEL or external domains, paste your Firebase Config here:
-        const VERCEL_FIREBASE_CONFIG = null; /* Example: { apiKey: "...", projectId: "..." } */
-        // ============================================================================
-
-        const hasNativeCloud = typeof __firebase_config !== 'undefined' && __firebase_config;
-        const configToUse = VERCEL_FIREBASE_CONFIG || (hasNativeCloud ? JSON.parse(__firebase_config) : null);
-        
-        let app, auth, db, globalAppId;
-        if (configToUse) {
-            app = initializeApp(configToUse);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            // FIXED: Use the correct Sandbox App ID for the Firestore path to bypass permission errors
-            globalAppId = typeof __app_id !== 'undefined' ? __app_id : (configToUse.projectId || 'fn-manager');
+        // --- Error Boundary for Crash Prevention ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center p-4">
+                            <div className="bg-red-900/30 border border-red-500/50 p-8 rounded-2xl max-w-lg text-center shadow-2xl">
+                                <i className="fa-solid fa-triangle-exclamation text-5xl text-red-400 mb-4"></i>
+                                <h2 className="text-2xl font-bold text-white mb-2">System Crash Prevented</h2>
+                                <p className="text-red-200 mb-6 text-sm">A piece of data triggered an error. Your database is safe.</p>
+                                <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-lg transition-all">Reload Dashboard</button>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
         }
 
         // --- Utility Functions ---
@@ -104,9 +94,20 @@
 
         // --- Core Application Component ---
         function App() {
-            const [user, setUser] = useState(null);
-            const [data, setData] = useState([]);
-            
+            // LocalStorage acts as Primary Source of Truth
+            const [data, setData] = useState(() => {
+                try {
+                    const local = localStorage.getItem('fnManagerData_github');
+                    if (local) return JSON.parse(local);
+                } catch(e) { console.error("Local data corrupt", e); }
+                return [];
+            });
+
+            // Persist Data automatically
+            useEffect(() => {
+                localStorage.setItem('fnManagerData_github', JSON.stringify(data));
+            }, [data]);
+
             // UI States
             const [searchTerm, setSearchTerm] = useState('');
             const [filterStatus, setFilterStatus] = useState('All');
@@ -114,7 +115,6 @@
             const [modalConfig, setModalConfig] = useState({ isOpen: false, item: null, parentId: null });
             const [dataManagerOpen, setDataManagerOpen] = useState(false);
             const [toast, setToast] = useState(null);
-            const [isConnecting, setIsConnecting] = useState(true);
 
             const itemsPerPage = 20;
 
@@ -123,106 +123,36 @@
                 setTimeout(() => setToast(null), 3500);
             }, []);
 
-            // 1. Authenticate to Cloud
-            useEffect(() => {
-                if (!configToUse) {
-                    setIsConnecting(false);
-                    showToast("No Cloud Config Found. Offline mode.", "warning");
-                    return;
-                }
-                
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && !VERCEL_FIREBASE_CONFIG) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Auth Error:", error);
-                        showToast("Authentication Failed", "warning");
-                    }
-                };
-                initAuth();
-
-                const unsubscribe = onAuthStateChanged(auth, (u) => {
-                    setUser(u);
-                    if (!u) setIsConnecting(false);
-                });
-                return () => unsubscribe();
-            }, []);
-
-            // 2. Real-time Cloud Sync Listener (Shared Public Database)
-            useEffect(() => {
-                if (!user || !db) return;
-                
-                // Using a 'public' collection so everyone views the same data instantly
-                const recordsRef = collection(db, 'artifacts', globalAppId, 'public', 'data', 'records');
-                
-                const unsubscribe = onSnapshot(recordsRef, (snapshot) => {
-                    const fetchedData = [];
-                    snapshot.forEach(doc => fetchedData.push(doc.data()));
-                    
-                    // Sort descending by ID to keep newest on top
-                    fetchedData.sort((a, b) => b.id.localeCompare(a.id));
-                    
-                    setData(fetchedData);
-                    setIsConnecting(false);
-                }, (error) => {
-                    console.error("Sync Error:", error);
-                    showToast("Real-time sync interrupted.", "warning");
-                });
-
-                return () => unsubscribe();
-            }, [user]);
-
             // --- Database Write Handlers ---
-            const handleSave = async (formData) => {
-                if (!user) return showToast("Not connected to cloud.", "warning");
-                
-                const recordId = modalConfig.item ? String(modalConfig.item.id) : Date.now().toString() + Math.random().toString(36).substr(2, 5);
-                const newItem = { ...formData, id: recordId };
-                if (modalConfig.parentId) newItem.parentId = String(modalConfig.parentId);
-                
-                try {
-                    const docRef = doc(db, 'artifacts', globalAppId, 'public', 'data', 'records', recordId);
-                    await setDoc(docRef, newItem);
-                    showToast(modalConfig.item ? 'Record updated!' : (modalConfig.parentId ? 'Sub-order added!' : 'Main account added!'));
-                } catch(e) { showToast("Failed to save to cloud.", "warning"); }
-                
+            const handleSave = (formData) => {
+                let newData;
+                if (modalConfig.item) {
+                    newData = data.map(d => String(d.id) === String(modalConfig.item.id) ? { ...d, ...formData } : d);
+                    showToast('Record updated!');
+                } else {
+                    const newItem = { ...formData, id: Date.now().toString() + Math.random().toString(36).substr(2, 5) };
+                    if (modalConfig.parentId) newItem.parentId = String(modalConfig.parentId);
+                    newData = [newItem, ...data]; 
+                    showToast(modalConfig.parentId ? 'Sub-order added!' : 'Main account added!');
+                }
+                setData(newData);
                 setModalConfig({ isOpen: false, item: null, parentId: null });
             };
 
-            const handleDelete = async (id) => {
-                if (!user) return;
-                if(confirm("PERMANENT DELETE: Are you sure you want to delete this record and all attached sub-orders for EVERYONE?")) {
-                    try {
-                        // Delete parent
-                        await deleteDoc(doc(db, 'artifacts', globalAppId, 'public', 'data', 'records', String(id)));
-                        
-                        // Delete children
-                        const children = data.filter(d => String(d.parentId) === String(id));
-                        for (const child of children) {
-                            await deleteDoc(doc(db, 'artifacts', globalAppId, 'public', 'data', 'records', String(child.id)));
-                        }
-                        showToast('Record deleted.', 'warning');
-                    } catch(e) { showToast("Failed to delete from cloud.", "warning"); }
+            const handleDelete = (id) => {
+                if(confirm("PERMANENT DELETE: Are you sure you want to delete this record and all attached sub-orders?")) {
+                    const newData = data.filter(d => String(d.id) !== String(id) && String(d.parentId) !== String(id));
+                    setData(newData);
+                    showToast('Record deleted.', 'warning');
                 }
             };
 
-            const toggleArchive = async (id) => {
-                if (!user) return;
+            const toggleArchive = (id) => {
                 const item = data.find(d => String(d.id) === String(id));
                 const isArchiving = !item?.isArchived;
-                const itemsToUpdate = data.filter(d => String(d.id) === String(id) || String(d.parentId) === String(id));
-                
-                try {
-                    for (const d of itemsToUpdate) {
-                        const docRef = doc(db, 'artifacts', globalAppId, 'public', 'data', 'records', String(d.id));
-                        await setDoc(docRef, { ...d, isArchived: isArchiving });
-                    }
-                    showToast(isArchiving ? 'Archived Completed Order' : 'Restored to Dashboard');
-                } catch(e) { showToast("Failed to update cloud.", "warning"); }
+                const newData = data.map(d => String(d.id) === String(id) || String(d.parentId) === String(id) ? { ...d, isArchived: isArchiving } : d);
+                setData(newData);
+                showToast(isArchiving ? 'Archived Completed Order' : 'Restored to Dashboard');
             };
 
             // --- Computed Data & Filtering ---
@@ -296,29 +226,17 @@
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
                                     FN Manager Pro
-                                    {isConnecting ? (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700">
-                                            <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></div>
-                                            <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">Connecting...</span>
-                                        </div>
-                                    ) : user ? (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-900/40 rounded-full border border-emerald-500/50 shadow-inner">
-                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                            <span className="text-[10px] font-bold text-emerald-300 tracking-wider uppercase hidden sm:inline-block">Live Global Sync</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-red-900/40 rounded-full border border-red-500/50 shadow-inner">
-                                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                            <span className="text-[10px] font-bold text-red-300 tracking-wider uppercase hidden sm:inline-block">Offline</span>
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-800/80 rounded-full border border-slate-700 shadow-inner">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                        <span className="text-[10px] font-bold text-slate-300 tracking-wider uppercase hidden sm:inline-block">Local Storage</span>
+                                    </div>
                                 </h1>
-                                <p className="text-sm text-slate-400 font-medium">Instantly Shared Collaborative Edition</p>
+                                <p className="text-sm text-slate-400 font-medium">GitHub Pages Optimized Edition</p>
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-3">
                             <button onClick={() => setDataManagerOpen(true)} className={`px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-semibold transition-all shadow-sm border border-slate-700 text-slate-200 flex items-center gap-2`}>
-                                <i className="fa-solid fa-database text-purple-400"></i> Cloud Data Hub
+                                <i className="fa-solid fa-database text-purple-400"></i> Data Hub
                             </button>
                             <button onClick={() => setModalConfig({ isOpen: true, item: null, parentId: null })} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center gap-2">
                                 <i className="fa-solid fa-plus"></i> New Account
@@ -328,7 +246,7 @@
 
                     {/* Dashboard Metrics */}
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-fade-in" style={{animationDelay: '0.1s'}}>
-                        <MetricCard title="Total DB Accounts" value={metrics.accounts} icon="fa-gamepad" color="text-purple-400" />
+                        <MetricCard title="Total Accounts" value={metrics.accounts} icon="fa-gamepad" color="text-purple-400" />
                         <MetricCard title="Active In Stock" value={metrics.stock} icon="fa-box" color="text-blue-400" />
                         <MetricCard title="Active Pending" value={metrics.pending} icon="fa-clock" color="text-yellow-400" />
                         <MetricCard title="Active Done" value={metrics.done} icon="fa-check-circle" color="text-green-400" />
@@ -375,13 +293,9 @@
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm">
-                                    {isConnecting ? (
+                                    {paginatedGroups.length === 0 ? (
                                         <tr><td colSpan="10" className="p-16 text-center text-slate-500 font-medium">
-                                            <i className="fa-solid fa-cloud-arrow-down text-5xl mb-4 text-blue-400 animate-bounce block"></i> Syncing to Live Database...
-                                        </td></tr>
-                                    ) : paginatedGroups.length === 0 ? (
-                                        <tr><td colSpan="10" className="p-16 text-center text-slate-500 font-medium">
-                                            <i className="fa-solid fa-folder-open text-5xl mb-4 opacity-30 block"></i> No records found. Try adjusting filters or adding data.
+                                            <i className="fa-solid fa-folder-open text-5xl mb-4 opacity-30 block"></i> No records found. Try adding data or adjusting filters.
                                         </td></tr>
                                     ) : paginatedGroups.map((group) => (
                                         <React.Fragment key={group.main.id}>
@@ -394,21 +308,14 @@
                                                             <button onClick={() => { navigator.clipboard.writeText(group.main.accountId); showToast("ID Copied!"); }} className="text-slate-500 hover:text-blue-400 transition-colors"><i className="fa-regular fa-copy"></i></button>
                                                         </div>
                                                     </td>
-                                                    <td className="p-4 text-right font-bold text-slate-300 text-lg">{group.main.availableVb ? parseNum(group.main.availableVb).toLocaleString() : '-'}</td>
-                                                    <td className="p-4 text-right">
-                                                        {group.main.orderVb ? <span className="text-orange-400 font-bold text-lg drop-shadow-sm">{parseNum(group.main.orderVb).toLocaleString()}</span> : '-'}
+                                                    <td className="p-4 text-right font-medium text-slate-300">{group.main.availableVb ? parseNum(group.main.availableVb).toLocaleString() : '-'}</td>
+                                                    <td className="p-4 text-right font-medium text-orange-400">
+                                                        {group.main.orderVb ? parseNum(group.main.orderVb).toLocaleString() : '-'}
                                                     </td>
-                                                    <td className="p-4 text-right">
-                                                        <div className="flex flex-col items-end gap-1">
-                                                            <span className={`font-bold text-lg drop-shadow-sm ${group.main._computedRemain < 0 ? 'text-red-400' : 'text-cyan-400'}`}>
-                                                                {group.main._computedRemain?.toLocaleString()}
-                                                            </span>
-                                                            {parseNum(group.main.availableVb) > 0 && (
-                                                                <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden flex shadow-inner">
-                                                                    <div className={`h-full ${group.main._computedRemain < 0 ? 'bg-red-500' : 'bg-cyan-400'}`} style={{width: `${Math.min(100, Math.max(0, (group.main._computedRemain / parseNum(group.main.availableVb)) * 100))}%`}}></div>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                    <td className="p-4 text-right font-bold">
+                                                        <span className={group.main._computedRemain < 0 ? 'text-red-400' : 'text-cyan-400'}>
+                                                            {group.main._computedRemain?.toLocaleString()}
+                                                        </span>
                                                     </td>
                                                     <td className="p-4 font-medium text-slate-200">{group.main.ign || '-'}</td>
                                                     <td className="p-4 text-slate-300 truncate max-w-[150px]">{group.main.item || '-'}</td>
@@ -431,9 +338,9 @@
                                             {/* Sub-order Rows */}
                                             {group.children.map(child => (
                                                 <tr key={child.id} className={`border-b border-slate-700/20 hover:bg-slate-800/60 transition-colors group ${child.isArchived ? 'opacity-50 bg-slate-900/80' : 'bg-slate-900/30'}`}>
-                                                    <td className="p-4 pl-8 text-slate-500 border-l-2 border-blue-500/20"><i className="fa-solid fa-level-up-alt fa-rotate-90 mr-2 text-xs"></i> <span className="text-[10px] tracking-wider uppercase">Sub</span></td>
+                                                    <td className="p-4 pl-8 text-slate-500 border-l-2 border-blue-500/20"><i className="fa-solid fa-level-up-alt fa-rotate-90 mr-2 text-xs opacity-50"></i> <span className="text-xs tracking-wider">SUB-ORDER</span></td>
                                                     <td className="p-4"></td>
-                                                    <td className="p-4 text-right"><span className="text-orange-400/90 font-semibold text-base">{child.orderVb ? parseNum(child.orderVb).toLocaleString() : '-'}</span></td>
+                                                    <td className="p-4 text-right font-medium text-orange-400">{child.orderVb ? parseNum(child.orderVb).toLocaleString() : '-'}</td>
                                                     <td className="p-4"></td>
                                                     <td className="p-4 font-medium text-slate-200">{child.ign || '-'}</td>
                                                     <td className="p-4 text-slate-300 truncate max-w-[150px]">{child.item || '-'}</td>
@@ -474,9 +381,8 @@
                     {/* Data Manager Modal */}
                     {dataManagerOpen && (
                         <DataManager 
-                            user={user} 
-                            db={db}
                             data={data} 
+                            setData={setData}
                             onClose={() => setDataManagerOpen(false)} 
                             showToast={showToast} 
                         />
@@ -577,8 +483,8 @@
                             </div>
                             <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-800">
                                 <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-lg font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all">Cancel</button>
-                                <button type="submit" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg font-bold text-white shadow-lg transition-all flex items-center gap-2">
-                                    <i className="fa-solid fa-cloud-arrow-up"></i> Save to Cloud
+                                <button type="submit" className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-white shadow-lg transition-all flex items-center gap-2">
+                                    <i className="fa-solid fa-save"></i> Save Record
                                 </button>
                             </div>
                         </form>
@@ -587,8 +493,30 @@
             );
         }
 
-        function DataManager({ user, db, data, onClose, showToast }) {
+        function DataManager({ data, setData, onClose, showToast }) {
             const csvInputRef = useRef(null);
+            const jsonInputRef = useRef(null);
+
+            const exportJSON = () => {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `FN_DB_Backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
+            };
+
+            const handleJSONImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const parsed = JSON.parse(evt.target.result);
+                        if (Array.isArray(parsed) && confirm(`DANGER: Restoring this JSON will replace ALL current data with ${parsed.length} records. Continue?`)) {
+                            setData(parsed); showToast("JSON Database Restored Successfully!"); onClose();
+                        }
+                    } catch(err) { showToast("Invalid JSON file.", "warning"); }
+                    e.target.value = null;
+                };
+                reader.readAsText(file);
+            };
 
             const exportCSV = () => {
                 const rows = [["Fortnite ID", "Available V-Bucks", "Remain V-Bucks", "IGN", "Order V-Bucks", "Gift Send Date", "Skin / Bundle", "Status", "TG ID"].join(',')];
@@ -608,8 +536,7 @@
             const handleCSVImport = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                if (!user) return showToast("Cannot import while offline.", "warning");
-                if (!confirm("Importing CSV will append data to the cloud database. Continue?")) { e.target.value = null; return; }
+                if (!confirm("Importing CSV will append data to your dashboard. Continue?")) { e.target.value = null; return; }
 
                 const reader = new FileReader();
                 reader.onload = async (event) => {
@@ -642,17 +569,8 @@
                         newData.push(rec);
                     }
                     
-                    showToast("Uploading to Cloud...");
-                    try {
-                        const { setDoc, doc } = await import('firebase/firestore');
-                        for (const rec of newData) {
-                            const docRef = doc(db, 'artifacts', globalAppId, 'public', 'data', 'records', String(rec.id));
-                            await setDoc(docRef, rec);
-                        }
-                        showToast(`Successfully uploaded ${newData.length} records to Cloud!`);
-                    } catch (err) {
-                        showToast("Cloud Upload Failed", "warning");
-                    }
+                    setData(prev => [...newData, ...prev]);
+                    showToast(`Successfully imported ${newData.length} records!`);
                     onClose();
                 };
                 reader.readAsText(file);
@@ -662,14 +580,19 @@
                 <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-fade-in">
                         <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-800/40">
-                            <h2 className="text-xl font-bold text-white"><i className="fa-solid fa-cloud text-blue-400 mr-2"></i> Cloud Data Hub</h2>
+                            <h2 className="text-xl font-bold text-white"><i className="fa-solid fa-database text-purple-400 mr-2"></i> Data Hub</h2>
                             <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors"><i className="fa-solid fa-times text-xl"></i></button>
                         </div>
-                        <div className="p-6 space-y-6">
+                        <div className="p-6 space-y-8">
                             
-                            <div className="bg-emerald-900/20 border border-emerald-500/30 p-4 rounded-xl">
-                                <h3 className="text-emerald-400 font-bold mb-1"><i className="fa-solid fa-globe"></i> Database is Live</h3>
-                                <p className="text-sm text-emerald-200/70">Because you are using the Live Cloud Edition, your data automatically saves and syncs to everyone instantly. No manual backups are required.</p>
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">System Backup (Recommended)</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={exportJSON} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-white transition-all"><i className="fa-solid fa-download text-emerald-400 mr-2"></i> Download Full Backup (.json)</button>
+                                    <input type="file" accept=".json" className="hidden" ref={jsonInputRef} onChange={handleJSONImport} />
+                                    <button onClick={() => jsonInputRef.current.click()} className="flex-1 py-3 bg-red-900/20 hover:bg-red-900/40 border border-red-500/30 rounded-xl font-semibold text-red-400 transition-all"><i className="fa-solid fa-upload mr-2"></i> Restore JSON</button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">JSON preserves exact system state, including parent/child IDs and archives. Use this to move data between your PC and Phone!</p>
                             </div>
 
                             <div>
@@ -677,9 +600,10 @@
                                 <div className="flex gap-3">
                                     <button onClick={exportCSV} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-white transition-all"><i className="fa-solid fa-file-csv text-blue-400 mr-2"></i> Export to CSV</button>
                                     <input type="file" accept=".csv" className="hidden" ref={csvInputRef} onChange={handleCSVImport} />
-                                    <button onClick={() => csvInputRef.current.click()} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-slate-300 transition-all"><i className="fa-solid fa-cloud-arrow-up mr-2"></i> Import to Cloud</button>
+                                    <button onClick={() => csvInputRef.current.click()} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-slate-300 transition-all"><i className="fa-solid fa-file-import mr-2"></i> Import CSV</button>
                                 </div>
                             </div>
+
                         </div>
                     </div>
                 </div>
@@ -687,7 +611,7 @@
         }
 
         const root = window.ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
     </script>
 </body>
 </html>
