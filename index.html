@@ -166,6 +166,7 @@
             const [toast, setToast] = useState(null);
             
             // Custom Confirm Dialog State
+            // --- Custom Confirm Dialog State
             const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, message: '', onConfirm: null, isDanger: false });
             
             // Firebase States
@@ -199,10 +200,9 @@
             // --- Firebase Sync Engine ---
             const getDocPath = () => {
                 if (!window.FirebaseBridge.user) return null;
-                // Rule 1: Strict paths logic applied. Using the user's project ID as the generic app ID
+                // Use a Global Public Path so data syncs across ALL browsers and devices
                 const appId = window.FirebaseBridge.config.projectId;
-                const userId = window.FirebaseBridge.user.uid;
-                return ['artifacts', appId, 'users', userId, 'dashboard_data', 'main_payload'];
+                return ['artifacts', appId, 'public', 'data', 'dashboards', 'main_payload'];
             };
 
             useEffect(() => {
