@@ -261,7 +261,7 @@
 
             const pushToCloud = async (payload) => {
                 const bridge = window.FirebaseBridge;
-                if (!bridge.user || !fbReadyRef.current || !navigator.onLine) return;
+                if (!bridge.user || !fbReadyRef.current) return;
                 
                 setIsSyncing(true);
                 try {
@@ -440,7 +440,8 @@
                             <div>
                                 <h3 className="text-red-400 font-bold text-lg mb-1"><i className="fa-solid fa-lock mr-2"></i> Firebase Database is Locked!</h3>
                                 <p className="text-red-200 text-sm">Your database requires permission setup to allow syncing.</p>
-                                <p className="text-red-300/70 text-xs mt-2 font-mono">Console Error: Missing or insufficient permissions.</p>
+                                <p className="text-red-300/70 text-xs mt-2 font-mono">If you just fixed the rules, you MUST reload the page to reconnect.</p>
+                                <button onClick={() => window.location.reload()} className="mt-3 px-4 py-2 bg-red-500 hover:bg-red-400 text-white text-sm font-bold rounded-lg shadow-lg"><i className="fa-solid fa-rotate mr-2"></i> Reload App</button>
                             </div>
                             <div className="bg-slate-900 border border-slate-700 p-3 rounded-lg text-xs font-mono text-slate-300 w-full xl:w-auto overflow-x-auto">
                                 1. Go to Firebase Console -{'>'} Firestore Database -{'>'} <b>Rules</b><br/>
@@ -603,6 +604,7 @@ service cloud.firestore {
                             showToast={showToast} 
                             updateDatabase={updateDatabase}
                             openConfirm={openConfirm}
+                            pushToCloud={() => pushToCloud(data)}
                         />
                     )}
 
@@ -711,7 +713,7 @@ service cloud.firestore {
             );
         }
 
-        function DataManager({ data, setData, onClose, showToast, updateDatabase, openConfirm }) {
+        function DataManager({ data, setData, onClose, showToast, updateDatabase, openConfirm, pushToCloud }) {
             const csvInputRef = useRef(null);
             const jsonInputRef = useRef(null);
 
@@ -832,6 +834,15 @@ service cloud.firestore {
                                     <input type="file" accept=".csv" className="hidden" ref={csvInputRef} onChange={handleCSVImport} />
                                     <button onClick={() => csvInputRef.current.click()} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-slate-300 transition-all"><i className="fa-solid fa-file-import mr-2"></i> Import CSV</button>
                                 </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3">Cloud Sync Tools</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={() => { pushToCloud(); showToast("Force pushed local data to Cloud!"); onClose(); }} className="flex-1 py-3 bg-blue-900/20 hover:bg-blue-900/40 border border-blue-500/30 rounded-xl font-semibold text-blue-400 transition-all"><i className="fa-solid fa-cloud-arrow-up mr-2"></i> Force Sync to Cloud</button>
+                                    <button onClick={() => window.location.reload()} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl font-semibold text-slate-300 transition-all"><i className="fa-solid fa-rotate mr-2"></i> Restart Connection</button>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-2">If your data isn't showing up on another device, click <b>Force Sync to Cloud</b> here to overwrite the cloud with this device's data.</p>
                             </div>
 
                         </div>
