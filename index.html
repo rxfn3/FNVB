@@ -3,153 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Fortnite V-Bucks & Account Management Dashboard with Real-time Cloud Sync">
+    <meta name="description" content="Fortnite V-Bucks & Account Management Dashboard">
     <title>FN Manager Pro | Cloud Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-                    colors: {
-                        slate: { 850: '#172033', 950: '#070c18' },
-                        fn: { dark: '#070c18', card: '#111827', primary: '#3b82f6', accent: '#8b5cf6', success: '#10b981', warning: '#f59e0b', danger: '#ef4444' }
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.3s ease-out forwards',
-                        'slide-up': 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                        'slide-down': 'slideDown 0.2s ease-out forwards',
-                        'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
-                        'spin-slow': 'spin 2s linear infinite',
-                        'bounce-soft': 'bounceSoft 1.5s ease-in-out infinite',
-                        'shake': 'shake 0.4s ease-in-out',
-                        'glow': 'glow 2s ease-in-out infinite alternate',
-                        'scale-in': 'scaleIn 0.2s ease-out forwards'
-                    },
-                    keyframes: {
-                        fadeIn: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-                        slideUp: { '0%': { opacity: '0', transform: 'translateY(20px) scale(0.97)' }, '100%': { opacity: '1', transform: 'translateY(0) scale(1)' } },
-                        slideDown: { '0%': { opacity: '0', transform: 'translateY(-10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-                        pulseSoft: { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.6' } },
-                        bounceSoft: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-4px)' } },
-                        shake: { '0%, 100%': { transform: 'translateX(0)' }, '25%': { transform: 'translateX(-6px)' }, '75%': { transform: 'translateX(6px)' } },
-                        glow: { '0%': { boxShadow: '0 0 5px rgba(59,130,246,0.3)' }, '100%': { boxShadow: '0 0 20px rgba(59,130,246,0.6)' } },
-                        scaleIn: { '0%': { opacity: '0', transform: 'scale(0.9)' }, '100%': { opacity: '1', transform: 'scale(1)' } }
-                    }
-                }
-            }
-        }
-    </script>
     <style>
-        *, *::before, *::after { box-sizing: border-box; }
-        html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        body { font-family: 'Inter', system-ui, sans-serif; background-color: #070c18; color: #f1f5f9; overflow-x: hidden; min-height: 100vh; }
-
-        /* Scrollbar */
+        :root { --scrollbar-thumb: #334155; --scrollbar-track: #0b1120; }
+        * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #070c18; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-        /* Glass Effect */
-        .glass-panel { background: rgba(17, 24, 39, 0.75); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.06); }
-        .glass-modal { background: rgba(11, 17, 32, 0.95); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
-        .glass-header { background: rgba(7, 12, 24, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-
-        /* Row Actions */
-        .row-hover { position: relative; }
-        .row-hover .action-btns { opacity: 0; transition: opacity 0.2s ease, transform 0.2s ease; transform: translateX(4px); }
-        .row-hover:hover .action-btns { opacity: 1; transform: translateX(0); }
-
-        /* Gradient Text */
-        .text-gradient { background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-
-        /* Status Glows */
-        .status-glow-done { box-shadow: 0 0 12px rgba(16, 185, 129, 0.15); }
-        .status-glow-pending { box-shadow: 0 0 12px rgba(245, 158, 11, 0.15); }
-        .status-glow-stock { box-shadow: 0 0 12px rgba(59, 130, 246, 0.15); }
-
-        /* Progress Bar Animation */
-        .progress-fill { transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-
-        /* Focus Ring */
-        .focus-ring:focus-visible { outline: none; ring: 2px; ring-color: #3b82f6; ring-offset: 2px; ring-offset-color: #070c18; }
-
-        /* Input Reset */
-        input, select, textarea { font-family: inherit; }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
-
-        /* Table Row Transition */
-        .table-row-enter { animation: fadeIn 0.25s ease-out forwards; }
-
-        /* Loading Skeleton */
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-
-        /* Mobile Optimizations */
-        @media (max-width: 640px) { .hide-mobile { display: none !important; } }
-
-        /* Print */
-        @media print { body { background: white; color: black; } .no-print { display: none !important; } }
-
-        /* Connection Status Dot */
-        .conn-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-        .conn-online { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.5); }
-        .conn-offline { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
-        .conn-syncing { background: #3b82f6; animation: pulseSoft 1s infinite; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 8px; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #0b1120; color: #f1f5f9; min-height: 100vh; }
     </style>
-<base target="_blank">
 </head>
 <body>
     <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef, useCallback } = React;
+        const ReactDOM = window.ReactDOM;
 
-    <script type="text/babel" data-type="module">
-        // ============================================================
-        //  FIREBASE SDK IMPORTS (v11 - Modular)
-        // ============================================================
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            onAuthStateChanged,
-            signInWithCustomToken 
-        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-        import { 
-            getFirestore, 
-            collection, 
-            onSnapshot, 
-            doc, 
-            setDoc, 
-            deleteDoc, 
-            getDocs,
-            writeBatch,
-            enableIndexedDbPersistence,
-            terminate,
-            getDoc
-        } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
-
-        const { useState, useEffect, useMemo, useRef, useCallback } = window.React;
-
-        // ============================================================
-        //  CONFIGURATION & CONSTANTS
-        // ============================================================
-        const CONFIG = {
-            appId: 'fn-manager-pro',
-            collectionPath: 'artifacts/fn-manager-pro/public/records',
-            enableOffline: true,
-            version: '2.0.0',
-            buildDate: '2026-05-14'
-        };
-
-        // Your Firebase Config
-        const firebaseConfig = {
+        // Your Firebase config
+        const FIREBASE_CONFIG = {
             apiKey: "AIzaSyDP1XqcC6DEnAi-A-ggI2oeQOuDM0HxXpQ",
             authDomain: "fortnite-manager-pro.firebaseapp.com",
             projectId: "fortnite-manager-pro",
@@ -158,1257 +38,391 @@
             appId: "1:239599063665:web:906ba62330061c84a381d0"
         };
 
-        // Initialize Firebase
-        let app, auth, db, isOfflineEnabled = false;
-        let recordsColRef = null;
+        const APP_ID = 'fn-manager-pro';      // matches your Firestore rules path
+        const IS_CLOUD = true;                // always use cloud when config is present
 
+        // ---------- Utilities ----------
+        const pn = (v) => { if (!v) return 0; const n = Number(String(v).replace(/[^0-9.-]/g,'')); return isNaN(n)?0:n; };
+        const fmt = (v) => pn(v).toLocaleString('en-US');
+        const uid = () => Date.now().toString(36) + Math.random().toString(36).substr(2,6);
+        const qcsv = (s) => s ? (s.includes(',')||s.includes('"') ? `"${s.replace(/"/g,'""')}"` : s) : '';
+        const parsecsv = (l) => { let r=[],c='',q=false; for(let ch of l){ if(ch=='"')q=!q; else if(ch==','&&!q){r.push(c);c='';} else c+=ch; } r.push(c); return r.map(s=>s.trim().replace(/^"|"$/g,'')); };
+
+        // ---------- Local backup ----------
+        const LSKEY = 'fn_db_backup';
+        const loadLocal = () => { try { const d=JSON.parse(localStorage.getItem(LSKEY)); return d?.data||[]; } catch{ return []; } };
+        const saveLocal = (data) => { try { localStorage.setItem(LSKEY, JSON.stringify({data,ts:Date.now()})); } catch{} };
+
+        // ---------- Firebase ----------
+        let app, auth, db;
         try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-            recordsColRef = collection(db, CONFIG.collectionPath);
-
-            // Enable offline persistence for data resilience
-            if (CONFIG.enableOffline && typeof window !== 'undefined') {
-                enableIndexedDbPersistence(db).then(() => {
-                    isOfflineEnabled = true;
-                    console.log('[FN Pro] Offline persistence enabled');
-                }).catch((err) => {
-                    if (err.code === 'failed-precondition') {
-                        console.warn('[FN Pro] Multiple tabs open, persistence enabled in first tab only');
-                    } else if (err.code === 'unimplemented') {
-                        console.warn('[FN Pro] Browser does not support offline persistence');
-                    }
-                });
-            }
-        } catch (initError) {
-            console.error('[FN Pro] Firebase initialization failed:', initError);
-        }
-
-        // ============================================================
-        //  UTILITY FUNCTIONS
-        // ============================================================
-
-        const uid = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
-
-        const parseNum = (val) => {
-            if (val === null || val === undefined || val === '') return 0;
-            const str = String(val).replace(/[^0-9.-]/g, '');
-            const n = Number(str);
-            return isNaN(n) ? 0 : n;
-        };
-
-        const formatNum = (n) => (n === 0 ? '0' : n.toLocaleString());
-
-        const debounce = (fn, ms = 300) => {
-            let t;
-            return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-        };
-
-        const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
-
-        // LocalStorage backup helpers
-        const LS_BACKUP_KEY = 'fn_pro_backup_v2';
-        const LS_DRAFT_KEY = 'fn_pro_draft';
-
-        const saveBackup = (data) => {
-            try { localStorage.setItem(LS_BACKUP_KEY, JSON.stringify({ data, timestamp: Date.now(), version: CONFIG.version })); } 
-            catch (e) { console.warn('Backup failed:', e); }
-        };
-
-        const loadBackup = () => {
-            try { 
-                const raw = localStorage.getItem(LS_BACKUP_KEY); 
-                return raw ? JSON.parse(raw) : null; 
-            } catch (e) { return null; }
-        };
-
-        const saveDraft = (draft) => {
-            try { localStorage.setItem(LS_DRAFT_KEY, JSON.stringify(draft)); } 
-            catch (e) {}
-        };
-
-        const loadDraft = () => {
-            try { 
-                const raw = localStorage.getItem(LS_DRAFT_KEY); 
-                return raw ? JSON.parse(raw) : null; 
-            } catch (e) { return null; }
-        };
-
-        const clearDraft = () => {
-            try { localStorage.removeItem(LS_DRAFT_KEY); } catch (e) {}
-        };
-
-        // ============================================================
-        //  CSV ENGINE
-        // ============================================================
-
-        const CSV = {
-            parseRow(str) {
-                const result = [];
-                let cur = '', inQuotes = false;
-                for (let i = 0; i < str.length; i++) {
-                    if (str[i] === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (str[i] === ',' && !inQuotes) {
-                        result.push(cur.trim().replace(/^"|"$/g, ''));
-                        cur = '';
-                    } else {
-                        cur += str[i];
-                    }
-                }
-                result.push(cur.trim().replace(/^"|"$/g, ''));
-                return result;
-            },
-
-            escape(str) {
-                const s = String(str ?? '');
-                if (s.includes(',') || s.includes('"') || s.includes('
-')) {
-                    return '"' + s.replace(/"/g, '""') + '"';
-                }
-                return s;
-            },
-
-            async import(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const lines = e.target.result.split(/\r?\n/);
-                            const rows = lines.map(l => this.parseRow(l)).filter(r => r.some(c => c.trim()));
-
-                            let headerIdx = rows.findIndex(r => r.some(c => c && c.trim().toLowerCase() === 'fortnite id'));
-                            if (headerIdx === -1) headerIdx = rows.findIndex(r => r.some(c => c && c.toLowerCase().includes('fortnite id')));
-                            if (headerIdx === -1) throw new Error("Missing 'Fortnite ID' column");
-
-                            const h = rows[headerIdx].map(c => c ? c.trim().toLowerCase() : '');
-                            const idx = {
-                                fnId: h.findIndex(c => c.includes('fortnite id')),
-                                avail: h.findIndex(c => c.includes('available v-bucks')),
-                                ign: h.findIndex(c => c === 'ign' || c.includes('ign')),
-                                order: h.findIndex(c => c.includes('order v-bucks')),
-                                date: h.findIndex(c => c.includes('gift send date')),
-                                item: h.findIndex(c => c.includes('skin / bundle')),
-                                status: h.findIndex(c => c === 'status'),
-                                tg: h.findIndex(c => c.includes('tg id') || c.includes('telegram'))
-                            };
-
-                            const records = [];
-                            let currentParentId = null;
-
-                            for (let i = headerIdx + 1; i < rows.length; i++) {
-                                const cols = rows[i];
-                                if (cols.length <= Math.max(0, idx.fnId)) continue;
-
-                                const get = (ix) => (ix !== -1 && cols[ix]) ? cols[ix].trim() : '';
-                                const accountId = get(idx.fnId);
-                                const ign = get(idx.ign);
-                                const item = get(idx.item);
-                                const orderVbStr = get(idx.order);
-                                const rawStatus = get(idx.status).toLowerCase();
-
-                                if (accountId.toLowerCase().includes('total') || accountId.toLowerCase().includes('summary')) continue;
-                                if (!accountId && !ign && !item && !orderVbStr) continue;
-
-                                let status = 'Stock';
-                                if (rawStatus.includes('done')) status = 'Done';
-                                else if (rawStatus.includes('pending') || (!rawStatus && (ign || item))) status = 'Pending';
-
-                                const record = {
-                                    id: uid(),
-                                    orderVb: orderVbStr, ign, item,
-                                    date: get(idx.date),
-                                    status,
-                                    tgId: get(idx.tg),
-                                    isArchived: false,
-                                    createdAt: Date.now()
-                                };
-
-                                if (accountId) {
-                                    record.accountId = accountId;
-                                    record.availableVb = get(idx.avail);
-                                    currentParentId = record.id;
-                                } else {
-                                    if (currentParentId) record.parentId = currentParentId;
-                                    else continue;
-                                }
-                                records.push(record);
-                            }
-                            resolve(records);
-                        } catch (err) { reject(err); }
-                    };
-                    reader.onerror = reject;
-                    reader.readAsText(file);
-                });
-            },
-
-            export(data) {
-                const headers = ["Fortnite ID", "Available V-Bucks", "Remain V-Bucks", "IGN", "Order V-Bucks", "Gift Send Date", "Skin / Bundle", "Status", "TG ID"];
-                const enriched = enrichData(data);
-                const rows = [headers.join(',')];
-
-                enriched.filter(d => !d.parentId).forEach(main => {
-                    rows.push([
-                        this.escape(main.accountId || ''),
-                        this.escape(main.availableVb || ''),
-                        this.escape(main._computedRemain ?? ''),
-                        this.escape(main.ign || ''),
-                        this.escape(main.orderVb || ''),
-                        this.escape(main.date || ''),
-                        this.escape(main.item || ''),
-                        this.escape(main.status),
-                        this.escape(main.tgId || '')
-                    ].join(','));
-
-                    data.filter(d => String(d.parentId) === String(main.id)).forEach(child => {
-                        rows.push([
-                            this.escape(''), this.escape(''), this.escape(''),
-                            this.escape(child.ign || ''),
-                            this.escape(child.orderVb || ''),
-                            this.escape(child.date || ''),
-                            this.escape(child.item || ''),
-                            this.escape(child.status),
-                            this.escape(child.tgId || '')
-                        ].join(','));
-                    });
-                });
-
-                const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `FN_Export_${new Date().toISOString().slice(0,10)}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-        };
-
-        // ============================================================
-        //  DATA COMPUTATION HELPERS
-        // ============================================================
-
-        function enrichData(data) {
-            return data.map(item => {
-                if (item.parentId) return item;
-                const children = data.filter(d => String(d.parentId) === String(item.id));
-                const totalUsed = parseNum(item.orderVb) + children.reduce((sum, c) => sum + parseNum(c.orderVb), 0);
-                const remain = parseNum(item.availableVb) - totalUsed;
-                return { ...item, _computedRemain: remain, _computedUsed: totalUsed };
-            });
-        }
-
-        function computeMetrics(data) {
-            const allMain = data.filter(d => !d.parentId);
-            const active = data.filter(d => !d.isArchived);
-            const activeMain = active.filter(d => !d.parentId);
-
-            return {
-                totalAccounts: allMain.length,
-                activeAccounts: activeMain.length,
-                stock: active.filter(d => d.status === 'Stock').length,
-                pending: active.filter(d => d.status === 'Pending').length,
-                done: active.filter(d => d.status === 'Done').length,
-                archived: data.filter(d => d.isArchived).length,
-                totalAvailable: activeMain.reduce((s, d) => s + parseNum(d.availableVb), 0),
-                totalOrdered: active.reduce((s, d) => s + parseNum(d.orderVb), 0),
-                totalRemain: activeMain.reduce((s, d) => {
-                    const children = active.filter(c => String(c.parentId) === String(d.id));
-                    const used = parseNum(d.orderVb) + children.reduce((sum, c) => sum + parseNum(c.orderVb), 0);
-                    return s + (parseNum(d.availableVb) - used);
-                }, 0)
-            };
-        }
-
-        // ============================================================
-        //  TOAST SYSTEM
-        // ============================================================
-
-        function useToast() {
-            const [toast, setToast] = useState(null);
-            const timerRef = useRef(null);
-
-            const show = useCallback((message, type = 'success', duration = 3000) => {
-                if (timerRef.current) clearTimeout(timerRef.current);
-                setToast({ message, type, id: uid() });
-                timerRef.current = setTimeout(() => setToast(null), duration);
-            }, []);
-
-            return { toast, show };
-        }
-
-        // ============================================================
-        //  MAIN APP COMPONENT
-        // ============================================================
-
-        function App() {
-            const [user, setUser] = useState(null);
-            const [data, setData] = useState([]);
-            const [rawData, setRawData] = useState([]);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [filterStatus, setFilterStatus] = useState('All');
-            const [modal, setModal] = useState({ open: false, item: null, parentId: null });
-            const [connState, setConnState] = useState('connecting'); // connecting, online, offline, error
-            const [isSyncing, setIsSyncing] = useState(false);
-            const [showHelp, setShowHelp] = useState(false);
-            const [sortBy, setSortBy] = useState({ col: 'accountId', dir: 'asc' });
-            const fileInputRef = useRef(null);
-            const { toast, show } = useToast();
-            const unsubRef = useRef(null);
-            const pendingOpsRef = useRef(new Set());
-
-            // ---- AUTHENTICATION ----
-            useEffect(() => {
-                if (!auth) {
-                    setConnState('error');
-                    show('Firebase not initialized. Check config.', 'error', 5000);
-                    return;
-                }
-
-                const unsub = onAuthStateChanged(auth, (u) => {
-                    setUser(u);
-                    if (u) {
-                        setConnState('online');
-                        console.log('[FN Pro] Authenticated:', u.uid.slice(0, 8) + '...');
-                    } else {
-                        // Auto anonymous sign-in
-                        signInAnonymously(auth).catch(err => {
-                            console.error('[FN Pro] Auth failed:', err);
-                            setConnState('error');
-                            show('Authentication failed', 'error', 5000);
-                        });
-                    }
-                });
-
-                return () => unsub();
-            }, []);
-
-            // ---- REAL-TIME SYNC LISTENER ----
-            useEffect(() => {
-                if (!user || !db || !recordsColRef) return;
-
-                setConnState('online');
-                setIsSyncing(true);
-
-                // Cleanup previous listener
-                if (unsubRef.current) unsubRef.current();
-
-                const unsub = onSnapshot(recordsColRef, 
-                    (snapshot) => {
-                        const records = [];
-                        snapshot.forEach(docSnap => {
-                            records.push({ ...docSnap.data(), _docId: docSnap.id });
-                        });
-
-                        // Sort by createdAt desc, fallback to id
-                        records.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.id).localeCompare(String(a.id)));
-
-                        setRawData(records);
-                        setIsSyncing(false);
-                        setConnState(navigator.onLine ? 'online' : 'offline');
-
-                        // Auto-backup to localStorage
-                        saveBackup(records);
-                    },
-                    (error) => {
-                        console.error('[FN Pro] Sync error:', error);
-                        setConnState('error');
-                        setIsSyncing(false);
-                        show('Sync error. Using local backup.', 'warning', 4000);
-
-                        // Fallback to local backup
-                        const backup = loadBackup();
-                        if (backup?.data) {
-                            setRawData(backup.data);
-                        }
-                    }
-                );
-
-                unsubRef.current = unsub;
-
-                return () => { if (unsub) unsub(); };
-            }, [user]);
-
-            // ---- NETWORK STATUS MONITOR ----
-            useEffect(() => {
-                const handleOnline = () => setConnState(s => s === 'offline' ? 'online' : s);
-                const handleOffline = () => setConnState('offline');
-                window.addEventListener('online', handleOnline);
-                window.addEventListener('offline', handleOffline);
-                return () => {
-                    window.removeEventListener('online', handleOnline);
-                    window.removeEventListener('offline', handleOffline);
-                };
-            }, []);
-
-            // ---- LOCAL BACKUP ON LOAD (BEFORE FIREBASE CONNECTS) ----
-            useEffect(() => {
-                const backup = loadBackup();
-                if (backup?.data && rawData.length === 0) {
-                    setRawData(backup.data);
-                    show('Restored from local backup', 'info', 2000);
-                }
-            }, []);
-
-            // ---- COMPUTED DATA ----
-            const enrichedData = useMemo(() => enrichData(rawData), [rawData]);
-
-            const metrics = useMemo(() => computeMetrics(rawData), [rawData]);
-
-            const filteredGroups = useMemo(() => {
-                const term = searchTerm.toLowerCase().trim();
-                const mains = enrichedData.filter(d => !d.parentId);
-                const groups = [];
-
-                mains.forEach(main => {
-                    const isArchived = !!main.isArchived;
-
-                    if (filterStatus === 'Archived' && !isArchived) return;
-                    if (filterStatus !== 'Archived' && filterStatus !== 'All' && isArchived) return;
-                    if (filterStatus !== 'Archived' && filterStatus !== 'All' && main.status !== filterStatus) return;
-
-                    const children = enrichedData.filter(d => String(d.parentId) === String(main.id));
-                    const matchesSearch = !term || 
-                        main.accountId?.toLowerCase().includes(term) ||
-                        main.ign?.toLowerCase().includes(term) ||
-                        children.some(c => c.ign?.toLowerCase().includes(term) || c.item?.toLowerCase().includes(term));
-
-                    if (!matchesSearch) return;
-
-                    const filteredChildren = children.filter(c => filterStatus === 'All' || filterStatus === 'Archived' || c.status === filterStatus);
-                    groups.push({ main, children: filteredChildren, key: main.id });
-                });
-
-                // Sort groups
-                if (sortBy.col === 'accountId') {
-                    groups.sort((a, b) => {
-                        const cmp = (a.main.accountId || '').localeCompare(b.main.accountId || '');
-                        return sortBy.dir === 'asc' ? cmp : -cmp;
-                    });
-                }
-
-                return groups;
-            }, [enrichedData, searchTerm, filterStatus, sortBy]);
-
-            // ---- CLIPBOARD ----
-            const copyToClipboard = useCallback(async (text) => {
-                if (!text) return;
-                try {
-                    await navigator.clipboard.writeText(text);
-                    show(`Copied: ${text}`, 'success', 2000);
-                } catch {
-                    // Fallback
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    show(`Copied: ${text}`, 'success', 2000);
-                }
-            }, [show]);
-
-            // ---- CRUD OPERATIONS ----
-
-            const saveRecord = useCallback(async (formData) => {
-                if (!db || !user) {
-                    show('Not connected to cloud', 'error');
-                    return;
-                }
-
-                const recordId = modal.item ? String(modal.item.id) : uid();
-                const record = { 
-                    ...formData, 
-                    id: recordId,
-                    updatedAt: Date.now(),
-                    isArchived: formData.isArchived || false
-                };
-                if (!modal.item) record.createdAt = Date.now();
-                if (modal.parentId) record.parentId = String(modal.parentId);
-
-                try {
-                    setIsSyncing(true);
-                    await setDoc(doc(db, CONFIG.collectionPath, recordId), record, { merge: true });
-                    show(modal.item ? 'Updated successfully' : 'Saved to cloud', 'success');
-                    setModal({ open: false, item: null, parentId: null });
-                    clearDraft();
-                } catch (err) {
-                    console.error('[FN Pro] Save error:', err);
-                    show('Save failed: ' + err.message, 'error', 5000);
-                    setIsSyncing(false);
-                }
-            }, [db, user, modal, show]);
-
-            const deleteRecord = useCallback(async (id) => {
-                if (!db || !user) return;
-                if (!confirm('Delete this record permanently?')) return;
-
-                try {
-                    setIsSyncing(true);
-                    const children = rawData.filter(d => String(d.parentId) === String(id));
-
-                    // Delete children first
-                    for (const child of children) {
-                        await deleteDoc(doc(db, CONFIG.collectionPath, String(child.id)));
-                    }
-                    await deleteDoc(doc(db, CONFIG.collectionPath, String(id)));
-                    show('Deleted permanently', 'warning', 3000);
-                } catch (err) {
-                    console.error('[FN Pro] Delete error:', err);
-                    show('Delete failed', 'error');
-                    setIsSyncing(false);
-                }
-            }, [db, user, rawData, show]);
-
-            const toggleArchive = useCallback(async (id) => {
-                if (!db || !user) return;
-
-                const item = rawData.find(d => String(d.id) === String(id));
-                const newState = !item?.isArchived;
-                const toUpdate = rawData.filter(d => String(d.id) === String(id) || String(d.parentId) === String(id));
-
-                try {
-                    setIsSyncing(true);
-                    for (const d of toUpdate) {
-                        await setDoc(doc(db, CONFIG.collectionPath, String(d.id)), { isArchived: newState, updatedAt: Date.now() }, { merge: true });
-                    }
-                    show(newState ? 'Archived' : 'Restored', 'success', 2000);
-                } catch (err) {
-                    show('Archive toggle failed', 'error');
-                    setIsSyncing(false);
-                }
-            }, [db, user, rawData, show]);
-
-            // ---- IMPORT / EXPORT ----
-
-            const handleImport = useCallback(async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                if (rawData.length > 0 && !confirm('Import will merge with existing data. Continue?')) {
-                    e.target.value = null;
-                    return;
-                }
-
-                try {
-                    setIsSyncing(true);
-                    show('Reading CSV...', 'info', 2000);
-                    const records = await CSV.import(file);
-
-                    if (records.length === 0) {
-                        show('No valid records found', 'warning');
-                        setIsSyncing(false);
-                        e.target.value = null;
-                        return;
-                    }
-
-                    show(`Importing ${records.length} records...`, 'info', 3000);
-
-                    // Batch write
-                    const BATCH_SIZE = 400; // Firestore limit is 500
-                    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-                        const batch = writeBatch(db);
-                        const chunk = records.slice(i, i + BATCH_SIZE);
-                        chunk.forEach(rec => {
-                            const ref = doc(db, CONFIG.collectionPath, rec.id);
-                            batch.set(ref, rec);
-                        });
-                        await batch.commit();
-                    }
-
-                    show(`Imported ${records.length} records!`, 'success', 4000);
-                } catch (err) {
-                    console.error('[FN Pro] Import error:', err);
-                    show('Import failed: ' + err.message, 'error', 5000);
-                    setIsSyncing(false);
-                }
-                e.target.value = null;
-            }, [db, rawData.length, show]);
-
-            const handleExport = useCallback(() => {
-                CSV.export(rawData);
-                show('CSV exported', 'success', 2000);
-            }, [rawData, show]);
-
-            const handleJSONExport = useCallback(() => {
-                const payload = { data: rawData, exportedAt: Date.now(), version: CONFIG.version };
-                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `FN_Backup_${new Date().toISOString().slice(0,10)}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                show('JSON backup exported', 'success', 2000);
-            }, [rawData, show]);
-
-            const handleJSONImport = useCallback(async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                if (rawData.length > 0 && !confirm('This will merge JSON data. Continue?')) {
-                    e.target.value = null;
-                    return;
-                }
-
-                try {
-                    const text = await file.text();
-                    const payload = JSON.parse(text);
-                    const records = payload.data || payload;
-
-                    if (!Array.isArray(records) || records.length === 0) {
-                        show('No valid records in JSON', 'warning');
-                        e.target.value = null;
-                        return;
-                    }
-
-                    setIsSyncing(true);
-                    show(`Importing ${records.length} records...`, 'info', 3000);
-
-                    const BATCH_SIZE = 400;
-                    for (let i = 0; i < records.length; i += BATCH_SIZE) {
-                        const batch = writeBatch(db);
-                        const chunk = records.slice(i, i + BATCH_SIZE);
-                        chunk.forEach(rec => {
-                            const id = rec.id || uid();
-                            const ref = doc(db, CONFIG.collectionPath, id);
-                            batch.set(ref, { ...rec, id, updatedAt: Date.now() });
-                        });
-                        await batch.commit();
-                    }
-
-                    show(`Imported ${records.length} records!`, 'success', 4000);
-                } catch (err) {
-                    show('JSON import failed: ' + err.message, 'error', 5000);
-                    setIsSyncing(false);
-                }
-                e.target.value = null;
-            }, [db, rawData.length, show]);
-
-            // ---- KEYBOARD SHORTCUTS ----
-            useEffect(() => {
-                const handleKey = (e) => {
-                    if (e.key === 'Escape' && modal.open) {
-                        setModal({ open: false, item: null, parentId: null });
-                    }
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                        e.preventDefault();
-                        document.querySelector('[data-search-input]')?.focus();
-                    }
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !modal.open) {
-                        e.preventDefault();
-                        setModal({ open: true, item: null, parentId: null });
-                    }
-                };
-                window.addEventListener('keydown', handleKey);
-                return () => window.removeEventListener('keydown', handleKey);
-            }, [modal.open]);
-
-            // ---- RENDER ----
+            app = firebase.initializeApp(FIREBASE_CONFIG);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            db.enablePersistence().catch(() => {});
+        } catch(e) { console.warn(e); }
+
+        const colRef = () => db.collection('artifacts').doc(APP_ID).collection('public').doc('records').collection('items');
+
+        // ---------- Toast ----------
+        let toastFn;
+        const toast = (msg, type='success') => toastFn && toastFn({msg,type,id:Date.now()});
+
+        // ---------- Components ----------
+        function MetricCard({title, value, icon, color, sub}) {
             return (
-                <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-                    {/* Sticky Header */}
-                    <header className="glass-header sticky top-0 z-40 border-b border-slate-800/80">
-                        <div className="max-w-[1600px] mx-auto px-4 md:px-6 lg:px-8 py-3 flex flex-col md:flex-row justify-between items-center gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 via-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                                    <i className="fa-solid fa-bolt text-lg text-white"></i>
-                                </div>
-                                <div>
-                                    <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                                        FN Manager Pro
-                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">v{CONFIG.version}</span>
-                                    </h1>
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-xs text-slate-400">V-Bucks Cloud Dashboard</p>
-                                        <ConnectionBadge state={connState} syncing={isSyncing} user={user} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2">
-                                <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleImport} />
-                                <input type="file" accept=".json" className="hidden" id="jsonImportInput" onChange={handleJSONImport} />
-
-                                <div className="relative group">
-                                    <button className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all border border-slate-700 flex items-center gap-1.5">
-                                        <i className="fa-solid fa-file-import"></i> Import
-                                    </button>
-                                    <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
-                                        <button onClick={() => fileInputRef.current?.click()} className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
-                                            <i className="fa-solid fa-file-csv text-green-400"></i> CSV File
-                                        </button>
-                                        <button onClick={() => document.getElementById('jsonImportInput')?.click()} className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
-                                            <i className="fa-solid fa-file-code text-blue-400"></i> JSON Backup
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="relative group">
-                                    <button className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all border border-slate-700 flex items-center gap-1.5">
-                                        <i className="fa-solid fa-file-export"></i> Export
-                                    </button>
-                                    <div className="absolute right-0 top-full mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
-                                        <button onClick={handleExport} className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
-                                            <i className="fa-solid fa-file-csv text-green-400"></i> CSV Export
-                                        </button>
-                                        <button onClick={handleJSONExport} className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 flex items-center gap-2">
-                                            <i className="fa-solid fa-file-code text-blue-400"></i> JSON Backup
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <button onClick={() => setShowHelp(true)} className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all border border-slate-700">
-                                    <i className="fa-solid fa-circle-question"></i>
-                                </button>
-
-                                <button onClick={() => setModal({ open: true, item: null, parentId: null })} 
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-blue-600/25 flex items-center gap-1.5 active:scale-95">
-                                    <i className="fa-solid fa-plus"></i> New Account
-                                </button>
-                            </div>
-                        </div>
-                    </header>
-
-                    {/* Main Content */}
-                    <main className="flex-1 max-w-[1600px] w-full mx-auto px-4 md:px-6 lg:px-8 py-5 flex flex-col gap-5">
-
-                        {/* Metrics Grid */}
-                        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                            <MetricCard title="Accounts" value={metrics.activeAccounts} sub={metrics.archived > 0 ? `${metrics.archived} archived` : null} icon="fa-gamepad" gradient="from-purple-500/20 to-purple-600/10" iconColor="text-purple-400" />
-                            <MetricCard title="In Stock" value={metrics.stock} icon="fa-box" gradient="from-blue-500/20 to-blue-600/10" iconColor="text-blue-400" />
-                            <MetricCard title="Pending" value={metrics.pending} icon="fa-clock" gradient="from-yellow-500/20 to-yellow-600/10" iconColor="text-yellow-400" />
-                            <MetricCard title="Done" value={metrics.done} icon="fa-check-circle" gradient="from-green-500/20 to-green-600/10" iconColor="text-green-400" />
-                            <MetricCard title="Total VB" value={formatNum(metrics.totalAvailable)} icon="fa-coins" gradient="from-cyan-500/20 to-cyan-600/10" iconColor="text-cyan-400" />
-                            <MetricCard title="Remaining" value={formatNum(metrics.totalRemain)} icon="fa-wallet" gradient={metrics.totalRemain < 0 ? "from-red-500/20 to-red-600/10" : "from-emerald-500/20 to-emerald-600/10"} iconColor={metrics.totalRemain < 0 ? 'text-red-400' : 'text-emerald-400'} alert={metrics.totalRemain < 0} />
-                        </section>
-
-                        {/* Table Panel */}
-                        <section className="glass-panel rounded-xl flex flex-col flex-1 shadow-2xl overflow-hidden min-h-[400px]">
-                            {/* Toolbar */}
-                            <div className="p-3 border-b border-slate-800 flex flex-col sm:flex-row gap-3 bg-slate-900/40">
-                                <div className="relative flex-1 max-w-md">
-                                    <i className="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
-                                    <input data-search-input type="text" placeholder="Search ID, IGN, Skin... (Ctrl+K)" 
-                                        value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full bg-slate-950/60 border border-slate-800 text-sm rounded-lg py-2 pl-9 pr-4 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none text-slate-200 placeholder-slate-600 transition-all" />
-                                    {searchTerm && (
-                                        <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-                                            <i className="fa-solid fa-times-circle"></i>
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div className="flex gap-1.5 bg-slate-950/50 p-1 rounded-lg border border-slate-800 overflow-x-auto">
-                                    {['All', 'Stock', 'Pending', 'Done', 'Archived'].map(status => (
-                                        <button key={status} onClick={() => setFilterStatus(status)}
-                                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${filterStatus === status ? 'bg-blue-600 text-white shadow-sm' : status === 'Archived' ? 'text-purple-400 hover:bg-slate-800' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}>
-                                            {status === 'Archived' && <i className="fa-solid fa-box-archive text-[10px]"></i>}
-                                            {status}
-                                            {status !== 'All' && status !== 'Archived' && (
-                                                <span className="text-[9px] bg-slate-800 px-1 py-0.5 rounded-full">{status === 'Stock' ? metrics.stock : status === 'Pending' ? metrics.pending : metrics.done}</span>
-                                            )}
-                                            {status === 'Archived' && metrics.archived > 0 && (
-                                                <span className="text-[9px] bg-slate-800 px-1 py-0.5 rounded-full">{metrics.archived}</span>
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-
-                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                    <span>{filteredGroups.length} groups</span>
-                                    {isSyncing && <i className="fa-solid fa-circle-notch fa-spin text-blue-400"></i>}
-                                </div>
-                            </div>
-
-                            {/* Data Table */}
-                            <div className="overflow-x-auto flex-1">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-950/60 text-slate-500 text-[10px] uppercase tracking-widest font-bold border-b border-slate-800 select-none">
-                                            <th className="p-3 w-[18%] cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setSortBy({ col: 'accountId', dir: sortBy.dir === 'asc' ? 'desc' : 'asc' })}>
-                                                <span className="flex items-center gap-1">Fortnite ID {sortBy.col === 'accountId' && <i className={`fa-solid fa-sort-${sortBy.dir === 'asc' ? 'up' : 'down'} text-[8px]`}></i>}</span>
-                                            </th>
-                                            <th className="p-3 text-right w-[10%]">Available</th>
-                                            <th className="p-3 text-right w-[10%]">Ordered</th>
-                                            <th className="p-3 text-right w-[10%]">Remain</th>
-                                            <th className="p-3 w-[12%]">Buyer IGN</th>
-                                            <th className="p-3 w-[14%]">Skin / Bundle</th>
-                                            <th className="p-3 w-[8%] hide-mobile">Date</th>
-                                            <th className="p-3 w-[8%]">Status</th>
-                                            <th className="p-3 w-[8%] hide-mobile">Contact</th>
-                                            <th className="p-3 text-right w-[12%]">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-xs sm:text-sm">
-                                        {connState === 'connecting' && rawData.length === 0 ? (
-                                            <LoadingState />
-                                        ) : filteredGroups.length === 0 ? (
-                                            <EmptyState searchTerm={searchTerm} filterStatus={filterStatus} />
-                                        ) : filteredGroups.map((group, gi) => (
-                                            <React.Fragment key={group.key || gi}>
-                                                {/* Main Account Row */}
-                                                {group.main && (
-                                                    <tr className={`border-b border-slate-800/60 hover:bg-slate-800/30 transition-all row-hover ${group.main.isArchived ? 'opacity-60' : ''} ${gi % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
-                                                        <td className="p-3">
-                                                            <div className="flex items-center gap-2">
-                                                                {group.main.isArchived && <i className="fa-solid fa-box-archive text-purple-400 text-[10px]" title="Archived"></i>}
-                                                                <span className="font-bold text-white font-mono text-xs tracking-wide">{group.main.accountId || '—'}</span>
-                                                                {group.main.accountId && (
-                                                                    <button onClick={() => copyToClipboard(group.main.accountId)} className="text-slate-600 hover:text-blue-400 transition-colors">
-                                                                        <i className="fa-regular fa-copy text-[10px]"></i>
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 text-right font-bold text-slate-300 font-mono">{group.main.availableVb ? formatNum(parseNum(group.main.availableVb)) : '—'}</td>
-                                                        <td className="p-3 text-right">
-                                                            {group.main.orderVb ? (
-                                                                <span className="text-orange-400 font-bold font-mono">{formatNum(parseNum(group.main.orderVb))}</span>
-                                                            ) : '—'}
-                                                        </td>
-                                                        <td className="p-3 text-right">
-                                                            <div className="flex flex-col items-end gap-1">
-                                                                <span className={`font-bold font-mono text-xs ${group.main._computedRemain < 0 ? 'text-red-400' : 'text-cyan-400'}`}>
-                                                                    {formatNum(group.main._computedRemain ?? 0)}
-                                                                </span>
-                                                                {parseNum(group.main.availableVb) > 0 && (
-                                                                    <div className="w-14 h-1 bg-slate-800 rounded-full overflow-hidden">
-                                                                        <div className={`h-full rounded-full progress-fill ${group.main._computedRemain < 0 ? 'bg-red-500' : 'bg-cyan-400'}`} 
-                                                                            style={{width: `${clamp((group.main._computedRemain / parseNum(group.main.availableVb)) * 100, 0, 100)}%`}}></div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 font-medium text-slate-200 truncate max-w-[120px]">{group.main.ign || <span className="text-slate-600 italic text-xs">No buyer</span>}</td>
-                                                        <td className="p-3 text-slate-300 truncate max-w-[140px]">{group.main.item || '—'}</td>
-                                                        <td className="p-3 text-slate-500 text-[11px] hide-mobile">{group.main.date || '—'}</td>
-                                                        <td className="p-3"><StatusBadge status={group.main.status} /></td>
-                                                        <td className="p-3 hide-mobile">
-                                                            {group.main.tgId ? (
-                                                                <div className="flex items-center gap-1 text-blue-400">
-                                                                    <span className="text-xs truncate max-w-[80px]">{group.main.tgId}</span>
-                                                                    <button onClick={() => copyToClipboard(group.main.tgId)} className="text-slate-600 hover:text-blue-400 text-[10px]">
-                                                                        <i className="fa-regular fa-copy"></i>
-                                                                    </button>
-                                                                </div>
-                                                            ) : '—'}
-                                                        </td>
-                                                        <td className="p-3 text-right">
-                                                            <div className="flex justify-end gap-0.5 action-btns">
-                                                                <ActionBtn icon={`fa-solid ${group.main.isArchived ? 'fa-box-open' : 'fa-box-archive'}`} 
-                                                                    color={group.main.isArchived ? 'text-green-400 hover:bg-green-400/10' : 'text-slate-500 hover:text-purple-400 hover:bg-purple-400/10'} 
-                                                                    title={group.main.isArchived ? 'Restore' : 'Archive'} 
-                                                                    onClick={() => toggleArchive(group.main.id)} />
-                                                                <ActionBtn icon="fa-solid fa-code-branch" color="text-slate-500 hover:text-blue-400 hover:bg-blue-400/10" title="Add Sub-Order" 
-                                                                    onClick={() => setModal({ open: true, item: null, parentId: group.main.id })} />
-                                                                <ActionBtn icon="fa-solid fa-pen" color="text-slate-500 hover:text-white hover:bg-slate-700" title="Edit" 
-                                                                    onClick={() => setModal({ open: true, item: group.main, parentId: null })} />
-                                                                <ActionBtn icon="fa-solid fa-trash" color="text-slate-500 hover:text-red-400 hover:bg-red-400/10" title="Delete" 
-                                                                    onClick={() => deleteRecord(group.main.id)} />
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                )}
-
-                                                {/* Sub-order Rows */}
-                                                {group.children.map(child => (
-                                                    <tr key={child.id} className={`border-b border-slate-800/30 hover:bg-slate-800/40 transition-all row-hover ${child.isArchived ? 'opacity-50' : ''}`}>
-                                                        <td className="p-3 pl-6 border-l-2 border-blue-500/30">
-                                                            <div className="flex items-center gap-2">
-                                                                <i className="fa-solid fa-turn-up fa-rotate-90 text-[9px] text-slate-600"></i>
-                                                                <span className="text-[10px] text-slate-500 tracking-wider font-bold uppercase">Sub</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3"></td>
-                                                        <td className="p-3 text-right">
-                                                            {child.orderVb ? (
-                                                                <span className="text-orange-400/90 font-semibold font-mono">{formatNum(parseNum(child.orderVb))}</span>
-                                                            ) : '—'}
-                                                        </td>
-                                                        <td className="p-3"></td>
-                                                        <td className="p-3 font-medium text-slate-200">{child.ign || '—'}</td>
-                                                        <td className="p-3 text-slate-300">{child.item || '—'}</td>
-                                                        <td className="p-3 text-slate-500 text-[11px] hide-mobile">{child.date || '—'}</td>
-                                                        <td className="p-3"><StatusBadge status={child.status} /></td>
-                                                        <td className="p-3 hide-mobile">
-                                                            {child.tgId ? (
-                                                                <div className="flex items-center gap-1 text-blue-400">
-                                                                    <span className="text-xs">{child.tgId}</span>
-                                                                    <button onClick={() => copyToClipboard(child.tgId)} className="text-slate-600 hover:text-blue-400 text-[10px]">
-                                                                        <i className="fa-regular fa-copy"></i>
-                                                                    </button>
-                                                                </div>
-                                                            ) : '—'}
-                                                        </td>
-                                                        <td className="p-3 text-right">
-                                                            <div className="flex justify-end gap-0.5 action-btns">
-                                                                <ActionBtn icon="fa-solid fa-pen" color="text-slate-500 hover:text-white hover:bg-slate-700" title="Edit" 
-                                                                    onClick={() => setModal({ open: true, item: child, parentId: child.parentId })} />
-                                                                <ActionBtn icon="fa-solid fa-trash" color="text-slate-500 hover:text-red-400 hover:bg-red-400/10" title="Delete" 
-                                                                    onClick={() => deleteRecord(child.id)} />
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </React.Fragment>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Table Footer */}
-                            {rawData.length > 0 && (
-                                <div className="p-3 border-t border-slate-800 bg-slate-900/30 text-[11px] text-slate-500 flex justify-between items-center">
-                                    <span>Total: {rawData.length} records ({rawData.filter(d => !d.parentId).length} accounts, {rawData.filter(d => d.parentId).length} sub-orders)</span>
-                                    <span>Auto-sync enabled</span>
-                                </div>
-                            )}
-                        </section>
-                    </main>
-
-                    {/* Footer */}
-                    <footer className="border-t border-slate-800/60 py-3 px-6 text-center text-[11px] text-slate-600">
-                        FN Manager Pro v{CONFIG.version} · Firebase Realtime · Offline Ready · {new Date().getFullYear()}
-                    </footer>
-
-                    {/* Modals */}
-                    {modal.open && (
-                        <FormModal 
-                            item={modal.item} 
-                            isSubOrder={!!modal.parentId} 
-                            parentId={modal.parentId}
-                            onClose={() => { setModal({ open: false, item: null, parentId: null }); clearDraft(); }}
-                            onSave={saveRecord}
-                        />
-                    )}
-
-                    {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
-
-                    {/* Toast */}
-                    <AnimatePresence>
-                        {toast && <Toast key={toast.id} message={toast.message} type={toast.type} />}
-                    </AnimatePresence>
-                </div>
-            );
-        }
-
-        // ============================================================
-        //  SUB-COMPONENTS
-        // ============================================================
-
-        function MetricCard({ title, value, sub, icon, gradient, iconColor, alert }) {
-            return (
-                <div className={`relative overflow-hidden rounded-xl border border-slate-800/60 p-3.5 bg-gradient-to-br ${gradient} hover:border-slate-700/80 transition-all group`}>
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{title}</span>
-                        <i className={`fa-solid ${icon} ${iconColor} text-base opacity-60 group-hover:scale-110 transition-transform`}></i>
+                <div className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex flex-col justify-between hover:bg-slate-700/60 transition-colors">
+                    <div className="flex justify-between items-start mb-1">
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">{title}</span>
+                        <i className={`fa-solid ${icon} ${color} opacity-60 text-sm`}></i>
                     </div>
-                    <div className={`text-xl font-black tracking-tight ${alert ? 'animate-pulse' : ''} ${iconColor}`}>{value}</div>
+                    <div className={`text-2xl font-black tracking-tight ${color} tabular-nums`}>{value}</div>
                     {sub && <div className="text-[10px] text-slate-500 mt-0.5">{sub}</div>}
                 </div>
             );
         }
 
         function StatusBadge({ status }) {
-            const cfg = {
-                'Done': { cls: 'text-green-400 bg-green-400/10 border-green-500/20', icon: 'fa-check', glow: 'status-glow-done' },
-                'Pending': { cls: 'text-yellow-400 bg-yellow-400/10 border-yellow-500/20', icon: 'fa-clock', glow: 'status-glow-pending' },
-                'Stock': { cls: 'text-blue-400 bg-blue-400/10 border-blue-500/20', icon: 'fa-box', glow: 'status-glow-stock' }
-            }[status] || { cls: 'text-slate-400 bg-slate-800 border-slate-700', icon: 'fa-circle', glow: '' };
+            const m = {
+                Done: {c:'text-emerald-400 bg-emerald-400/10 border-emerald-500/20', i:'fa-check-circle', l:'Done'},
+                Pending: {c:'text-amber-400 bg-amber-400/10 border-amber-500/20', i:'fa-clock', l:'Pending'},
+                Stock: {c:'text-sky-400 bg-sky-400/10 border-sky-500/20', i:'fa-box', l:'In Stock'}
+            }[status] || {c:'text-slate-400 bg-slate-800', i:'fa-circle', l:status};
+            return <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider border inline-flex items-center gap-1 ${m.c}`}><i className={`fa-solid ${m.i} text-[10px]`}></i>{m.l}</span>;
+        }
 
+        function Modal({ children, onClose }) {
+            return <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}><div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 animate-fade-in" onClick={e=>e.stopPropagation()}>{children}</div></div>;
+        }
+
+        function FormModal({ item, isSub, parent, onClose, onSave }) {
+            const [f, setF] = useState(item||{accountId:'',availableVb:'',ign:'',orderVb:'',date:new Date().toISOString().split('T')[0],item:'',status:'Stock',tgId:''});
+            const handleChange = (e) => setF({...f,[e.target.name]:e.target.value});
+            const submit = (e) => { e.preventDefault(); onSave(f); };
             return (
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border inline-flex items-center gap-1 ${cfg.cls} ${cfg.glow}`}>
-                    <i className={`fa-solid ${cfg.icon} text-[8px]`}></i> {status}
-                </span>
+                <Modal onClose={onClose}>
+                    <h2 className="text-xl font-bold text-white mb-4">{item?'Edit':'New'} {isSub?'Sub-Order':'Account'}</h2>
+                    <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {!isSub && <>
+                            <div><label className="text-xs text-slate-400 uppercase">Fortnite ID *</label><input name="accountId" required value={f.accountId} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white" placeholder="FN..."/></div>
+                            <div><label className="text-xs text-slate-400 uppercase">Available V-Bucks *</label><input name="availableVb" required value={f.availableVb} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white" placeholder="6000"/></div>
+                        </>}
+                        <div><label className="text-xs text-slate-400 uppercase">Status</label><select name="status" value={f.status} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"><option value="Stock">📦 In Stock</option><option value="Pending">⏳ Pending</option><option value="Done">✅ Done</option></select></div>
+                        <div><label className="text-xs text-slate-400 uppercase">Ordered V-Bucks</label><input name="orderVb" value={f.orderVb} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-orange-400"/></div>
+                        <div><label className="text-xs text-slate-400 uppercase">Buyer IGN</label><input name="ign" value={f.ign} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"/></div>
+                        <div><label className="text-xs text-slate-400 uppercase">Skin/Bundle</label><input name="item" value={f.item} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white"/></div>
+                        <div><label className="text-xs text-slate-400 uppercase">Date</label><input type="date" name="date" value={f.date} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-slate-300"/></div>
+                        <div><label className="text-xs text-slate-400 uppercase">TG/Contact</label><input name="tgId" value={f.tgId} onChange={handleChange} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-blue-400"/></div>
+                        <div className="md:col-span-2 flex justify-end gap-3 mt-4">
+                            <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-800 rounded text-slate-300">Cancel</button>
+                            <button type="submit" className="px-4 py-2 bg-blue-600 rounded text-white font-bold">Save</button>
+                        </div>
+                    </form>
+                </Modal>
             );
         }
 
-        function ActionBtn({ icon, color, title, onClick }) {
-            return (
-                <button onClick={onClick} title={title} className={`p-1.5 rounded-md transition-all ${color}`}>
-                    <i className={`${icon} text-xs`}></i>
-                </button>
-            );
-        }
+        function App() {
+            const [data, setData] = useState(loadLocal());
+            const [search, setSearch] = useState('');
+            const [filter, setFilter] = useState('All');
+            const [modal, setModal] = useState(null);
+            const [toasts, setToasts] = useState([]);
+            const [sync, setSync] = useState('offline');
+            const [delConfirm, setDelConfirm] = useState(null);
+            const fileRef = useRef(null);
 
-        function ConnectionBadge({ state, syncing, user }) {
-            const config = {
-                online: { dot: 'conn-online', text: 'Live Sync', color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-500/20' },
-                offline: { dot: 'conn-offline', text: 'Offline', color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-500/20' },
-                connecting: { dot: 'conn-syncing', text: 'Connecting...', color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-500/20' },
-                error: { dot: 'conn-offline', text: 'Error', color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-500/20' }
-            }[state] || config.connecting;
+            useEffect(() => { toastFn = (t) => { setToasts(p=>[...p,t]); setTimeout(()=>setToasts(p=>p.filter(x=>x.id!==t.id)),3000); }; }, []);
 
-            return (
-                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wider ${config.bg} ${config.color} ${config.border}`}>
-                    <span className={`conn-dot ${syncing && state === 'online' ? 'conn-syncing' : config.dot}`}></span>
-                    {syncing && state === 'online' ? 'Syncing...' : config.text}
-                </span>
-            );
-        }
-
-        function LoadingState() {
-            return (
-                <tr><td colSpan="10" className="p-12 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                        <i className="fa-solid fa-circle-notch fa-spin text-3xl text-blue-400"></i>
-                        <p className="text-slate-400 font-medium">Connecting to cloud database...</p>
-                        <p className="text-slate-600 text-xs">This may take a few seconds</p>
-                    </div>
-                </td></tr>
-            );
-        }
-
-        function EmptyState({ searchTerm, filterStatus }) {
-            return (
-                <tr><td colSpan="10" className="p-12 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                        <i className="fa-solid fa-box-open text-4xl text-slate-700 mb-1"></i>
-                        <p className="text-slate-500 font-medium">
-                            {searchTerm ? 'No matches found' : filterStatus !== 'All' ? `No ${filterStatus} records` : 'No records yet'}
-                        </p>
-                        {searchTerm && <p className="text-slate-600 text-xs">Try a different search term</p>}
-                    </div>
-                </td></tr>
-            );
-        }
-
-        function AnimatePresence({ children }) {
-            const [mounted, setMounted] = useState(false);
-            useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
-            return children;
-        }
-
-        function Toast({ message, type }) {
-            const [visible, setVisible] = useState(false);
-
-            useEffect(() => { 
-                requestAnimationFrame(() => setVisible(true)); 
-                return () => setVisible(false);
+            // Real-time sync
+            useEffect(() => {
+                if (!IS_CLOUD || !db) { setSync('offline'); return; }
+                setSync('syncing');
+                const unsub = colRef().onSnapshot(snap => {
+                    const recs = [];
+                    snap.forEach(doc => recs.push({...doc.data(), _docId: doc.id}));
+                    recs.sort((a,b) => (a.parentId?1:-1) - (b.parentId?1:-1) || (a.accountId||'').localeCompare(b.accountId||''));
+                    setData(recs);
+                    saveLocal(recs);
+                    setSync('synced');
+                }, err => { console.error(err); setSync('error'); setData(loadLocal()); });
+                return () => unsub();
             }, []);
 
-            const config = {
-                success: { bg: 'bg-emerald-900/90', border: 'border-emerald-500/40', text: 'text-emerald-100', icon: 'fa-check-circle', iconColor: 'text-emerald-400' },
-                error: { bg: 'bg-red-900/90', border: 'border-red-500/40', text: 'text-red-100', icon: 'fa-triangle-exclamation', iconColor: 'text-red-400' },
-                warning: { bg: 'bg-yellow-900/90', border: 'border-yellow-500/40', text: 'text-yellow-100', icon: 'fa-exclamation-circle', iconColor: 'text-yellow-400' },
-                info: { bg: 'bg-blue-900/90', border: 'border-blue-500/40', text: 'text-blue-100', icon: 'fa-info-circle', iconColor: 'text-blue-400' }
-            }[type] || config.success;
+            const enriched = useMemo(() => data.map(d => {
+                if (d.parentId) return d;
+                const kids = data.filter(x => x.parentId === d.id);
+                const used = pn(d.orderVb) + kids.reduce((s,x)=>s+pn(x.orderVb),0);
+                return {...d, _remain: pn(d.availableVb)-used, _kids: kids.length};
+            }), [data]);
+
+            const metrics = useMemo(() => {
+                const active = data.filter(d=>!d.isArchived);
+                const mains = active.filter(d=>!d.parentId);
+                const avail = mains.reduce((s,d)=>s+pn(d.availableVb),0);
+                const ordered = active.reduce((s,d)=>s+pn(d.orderVb),0);
+                return {
+                    accounts: mains.length,
+                    stock: active.filter(d=>d.status==='Stock' && !d.parentId).length,
+                    pending: active.filter(d=>d.status==='Pending').length,
+                    done: active.filter(d=>d.status==='Done').length,
+                    avail, ordered, remain: avail-ordered
+                };
+            }, [data]);
+
+            const groups = useMemo(() => {
+                const term = search.toLowerCase();
+                const mains = enriched.filter(d=>!d.parentId);
+                return mains.flatMap(m => {
+                    const arch = m.isArchived;
+                    if (filter==='Archived' && !arch) return [];
+                    if (filter!=='Archived' && arch) return [];
+                    const kids = data.filter(d=>d.parentId===m.id);
+                    const show = !term || [m.accountId,m.ign,m.item,m.tgId,...kids.map(k=>[k.ign,k.item,k.tgId]).flat()].some(v=>String(v).toLowerCase().includes(term));
+                    if (term && !show) return [];
+                    const mainOk = filter==='All'||filter==='Archived'||m.status===filter;
+                    const fkids = kids.filter(k=>filter==='All'||filter==='Archived'||k.status===filter);
+                    return [{main: mainOk?m:null, kids: fkids}];
+                });
+            }, [enriched, search, filter]);
+
+            const saveRecord = async (rec) => {
+                const id = rec.id || uid();
+                const doc = {...rec, id, updatedAt: Date.now()};
+                if (modal?.parentId) doc.parentId = modal.parentId;
+                if (db) await colRef().doc(id).set(doc);
+                toast('Saved!');
+                setModal(null);
+            };
+
+            const deleteRecord = async (id) => {
+                const kids = data.filter(d=>d.parentId===id).map(d=>d.id);
+                const all = [id, ...kids];
+                if (db) {
+                    const batch = db.batch();
+                    all.forEach(rid => batch.delete(colRef().doc(rid)));
+                    await batch.commit();
+                }
+                setData(prev => prev.filter(d => !all.includes(d.id)));
+                toast('Deleted');
+                setDelConfirm(null);
+            };
+
+            const toggleArchive = async (id) => {
+                const it = data.find(d=>d.id===id);
+                if (!it) return;
+                const val = !it.isArchived;
+                const related = data.filter(d=>d.id===id || d.parentId===id).map(d=>d.id);
+                if (db) {
+                    const batch = db.batch();
+                    related.forEach(rid => batch.update(colRef().doc(rid), {isArchived: val, updatedAt: Date.now()}));
+                    await batch.commit();
+                }
+                setData(prev => prev.map(d => related.includes(d.id) ? {...d, isArchived: val} : d));
+            };
+
+            const exportCSV = () => {
+                const head = ['Fortnite ID','Available V-Bucks','Remain','IGN','Ordered','Date','Skin/Bundle','Status','TG ID'];
+                const rows = [head.join(',')];
+                enriched.filter(d=>!d.parentId).forEach(m => {
+                    rows.push([qcsv(m.accountId),m.availableVb||'',m._remain,qcsv(m.ign),m.orderVb||'',qcsv(m.date),qcsv(m.item),m.status,qcsv(m.tgId)].join(','));
+                    data.filter(d=>d.parentId===m.id).forEach(k => rows.push(['','','',qcsv(k.ign),k.orderVb||'',qcsv(k.date),qcsv(k.item),k.status,qcsv(k.tgId)].join(',')));
+                });
+                const blob = new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv'});
+                const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`fn_export_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+            };
+
+            const exportJSON = () => {
+                const blob = new Blob([JSON.stringify({data, exported: new Date().toISOString()},null,2)],{type:'application/json'});
+                const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`fn_backup_${new Date().toISOString().slice(0,10)}.json`; a.click();
+            };
+
+            const importJSON = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const txt = await file.text();
+                try {
+                    const {data: imported} = JSON.parse(txt);
+                    if (!Array.isArray(imported)) throw new Error();
+                    if (db) {
+                        const batch = db.batch();
+                        imported.forEach(r => batch.set(colRef().doc(r.id), r));
+                        await batch.commit();
+                    }
+                    toast(`Imported ${imported.length} records`);
+                } catch { toast('Invalid file','warning'); }
+                e.target.value = null;
+            };
+
+            const importCSV = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const txt = await file.text();
+                const lines = txt.split(/\r?\n/).filter(l=>l.trim());
+                // Simple CSV parsing
+                const rows = lines.map(parsecsv);
+                // Find header
+                const hIdx = rows.findIndex(r => r.some(c=>c.toLowerCase().includes('fortnite id')));
+                if (hIdx<0) { toast('CSV missing header','warning'); e.target.value=null; return; }
+                const h = rows[hIdx].map(c=>c.trim().toLowerCase());
+                const idx = {
+                    fn: h.findIndex(c=>c.includes('fortnite id')),
+                    av: h.findIndex(c=>c.includes('available v-bucks')),
+                    ig: h.findIndex(c=>c.includes('ign')),
+                    or: h.findIndex(c=>c.includes('order v-bucks')),
+                    dt: h.findIndex(c=>c.includes('date')),
+                    it: h.findIndex(c=>c.includes('skin')||c.includes('bundle')),
+                    st: h.findIndex(c=>c==='status'),
+                    tg: h.findIndex(c=>c.includes('tg')||c.includes('telegram'))
+                };
+                const newRecs = [];
+                let parentId = null;
+                for (let i=hIdx+1; i<rows.length; i++) {
+                    const c = rows[i];
+                    const get = (idx) => idx>=0 && idx<c.length ? c[idx].trim() : '';
+                    const fn = get(idx.fn);
+                    if (!fn && !get(idx.ig)) continue;
+                    const rec = {
+                        id: uid(),
+                        orderVb: get(idx.or),
+                        ign: get(idx.ig),
+                        item: get(idx.it),
+                        date: get(idx.dt),
+                        status: (get(idx.st).toLowerCase().includes('done')?'Done':(get(idx.st).toLowerCase().includes('pending')?'Pending':'Stock')),
+                        tgId: get(idx.tg),
+                        updatedAt: Date.now()
+                    };
+                    if (fn) {
+                        rec.accountId = fn;
+                        rec.availableVb = get(idx.av);
+                        parentId = rec.id;
+                    } else {
+                        rec.parentId = parentId;
+                    }
+                    newRecs.push(rec);
+                }
+                if (db) {
+                    const batch = db.batch();
+                    newRecs.forEach(r => batch.set(colRef().doc(r.id), r));
+                    await batch.commit();
+                }
+                toast(`Imported ${newRecs.length} records`);
+                e.target.value = null;
+            };
 
             return (
-                <div className={`fixed bottom-5 right-5 z-50 transition-all duration-300 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}>
-                    <div className={`px-4 py-3 rounded-xl shadow-2xl font-semibold border text-sm flex items-center gap-3 ${config.bg} ${config.border} ${config.text}`}>
-                        <i className={`fa-solid ${config.icon} ${config.iconColor}`}></i>
-                        {message}
+                <div className="min-h-screen p-4 md:p-6 flex flex-col gap-4 max-w-[1400px] mx-auto">
+                    <header className="flex flex-wrap justify-between items-center gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center"><i className="fa-solid fa-bolt text-white text-xl"></i></div>
+                            <div>
+                                <h1 className="text-xl font-bold text-white flex items-center gap-2">FN Manager Pro <span className={`text-xs px-2 py-0.5 rounded-full border border-slate-700 ${sync==='synced'?'text-emerald-400 border-emerald-500':'text-slate-400'}`}>{sync==='synced'?'Live':'Offline'}</span></h1>
+                                <p className="text-xs text-slate-400">Cloud dashboard</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            <button onClick={()=>fileRef.current.click()} className="px-3 py-2 bg-slate-800 rounded text-sm"><i className="fa-solid fa-upload"></i> CSV</button>
+                            <input type="file" accept=".csv" ref={fileRef} onChange={importCSV} className="hidden"/>
+                            <button onClick={exportCSV} className="px-3 py-2 bg-slate-800 rounded text-sm"><i className="fa-solid fa-download"></i> CSV</button>
+                            <button onClick={exportJSON} className="px-3 py-2 bg-slate-800 rounded text-sm"><i className="fa-solid fa-floppy-disk"></i> Backup</button>
+                            <label className="px-3 py-2 bg-slate-800 rounded text-sm cursor-pointer"><i className="fa-solid fa-folder-open"></i> Restore<input type="file" accept=".json" onChange={importJSON} className="hidden"/></label>
+                            <button onClick={()=>setModal({})} className="px-3 py-2 bg-blue-600 rounded text-sm font-bold"><i className="fa-solid fa-plus"></i> New</button>
+                        </div>
+                    </header>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        <MetricCard title="Accounts" value={metrics.accounts} icon="fa-gamepad" color="text-purple-400"/>
+                        <MetricCard title="In Stock" value={metrics.stock} icon="fa-box" color="text-sky-400"/>
+                        <MetricCard title="Pending" value={metrics.pending} icon="fa-clock" color="text-amber-400"/>
+                        <MetricCard title="Done" value={metrics.done} icon="fa-check-circle" color="text-emerald-400"/>
+                        <MetricCard title="Total V-Bucks" value={fmt(metrics.avail)} icon="fa-coins" color="text-cyan-400"/>
+                        <MetricCard title="Remaining" value={fmt(metrics.remain)} icon="fa-wallet" color={metrics.remain<0?'text-red-400':'text-emerald-400'}/>
+                    </div>
+
+                    <div className="bg-slate-900/80 border border-slate-700/50 rounded-xl overflow-hidden">
+                        <div className="p-3 border-b border-slate-700 flex gap-3 items-center flex-wrap">
+                            <div className="relative flex-1 max-w-md">
+                                <i className="fa-solid fa-search absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+                                <input placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded py-2 pl-9 pr-3 text-sm text-white"/>
+                            </div>
+                            <div className="flex gap-1 bg-slate-800 rounded p-0.5">
+                                {['All','Stock','Pending','Done','Archived'].map(s=>(
+                                    <button key={s} onClick={()=>setFilter(s)} className={`px-3 py-1 rounded text-xs font-semibold ${filter===s?'bg-blue-600 text-white':'text-slate-400 hover:text-white'}`}>{s}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-800/50 text-slate-400 text-xs uppercase">
+                                    <tr>
+                                        <th className="p-3 text-left">Fortnite ID</th><th className="p-3 text-right">Available</th><th className="p-3 text-right">Ordered</th><th className="p-3 text-right">Remain</th>
+                                        <th className="p-3">IGN</th><th className="p-3">Skin</th><th className="p-3">Date</th><th className="p-3">Status</th><th className="p-3">Contact</th><th className="p-3"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {groups.map((g,i) => (
+                                        <React.Fragment key={i}>
+                                            {g.main && (
+                                                <tr className="border-b border-slate-700/40 hover:bg-slate-800/50">
+                                                    <td className="p-3 font-bold text-white">{g.main.accountId}</td>
+                                                    <td className="p-3 text-right">{fmt(g.main.availableVb)}</td>
+                                                    <td className="p-3 text-right text-orange-400">{fmt(g.main.orderVb)}</td>
+                                                    <td className="p-3 text-right font-bold text-cyan-400">{fmt(g.main._remain)}</td>
+                                                    <td className="p-3">{g.main.ign||'-'}</td>
+                                                    <td className="p-3 text-slate-300">{g.main.item||'-'}</td>
+                                                    <td className="p-3 text-slate-400">{g.main.date||'-'}</td>
+                                                    <td className="p-3"><StatusBadge status={g.main.status}/></td>
+                                                    <td className="p-3 text-blue-400">{g.main.tgId||'-'}</td>
+                                                    <td className="p-3">
+                                                        <div className="flex gap-1">
+                                                            <button onClick={()=>toggleArchive(g.main.id)} className="p-1 text-slate-400 hover:text-purple-400"><i className="fa-solid fa-box-archive"></i></button>
+                                                            <button onClick={()=>setModal({parentId:g.main.id, parent:g.main})} className="p-1 text-slate-400 hover:text-blue-400"><i className="fa-solid fa-code-branch"></i></button>
+                                                            <button onClick={()=>setModal({item:g.main})} className="p-1 text-slate-400 hover:text-white"><i className="fa-solid fa-pen"></i></button>
+                                                            <button onClick={()=>{if(confirm('Delete?'))deleteRecord(g.main.id)}} className="p-1 text-slate-400 hover:text-red-400"><i className="fa-solid fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {g.kids.map(k => (
+                                                <tr key={k.id} className="border-b border-slate-700/20 bg-slate-800/20 hover:bg-slate-700/50">
+                                                    <td className="p-3 pl-6 text-slate-500"><i className="fa-solid fa-turn-up fa-rotate-90 text-xs mr-1"></i>SUB</td>
+                                                    <td className="p-3"></td>
+                                                    <td className="p-3 text-right text-orange-400/80">{fmt(k.orderVb)}</td>
+                                                    <td className="p-3"></td>
+                                                    <td className="p-3">{k.ign||'-'}</td>
+                                                    <td className="p-3 text-slate-300">{k.item||'-'}</td>
+                                                    <td className="p-3 text-slate-400">{k.date||'-'}</td>
+                                                    <td className="p-3"><StatusBadge status={k.status}/></td>
+                                                    <td className="p-3 text-blue-400">{k.tgId||'-'}</td>
+                                                    <td className="p-3">
+                                                        <div className="flex gap-1">
+                                                            <button onClick={()=>setModal({item:k, parentId:k.parentId})} className="p-1 text-slate-400 hover:text-white"><i className="fa-solid fa-pen"></i></button>
+                                                            <button onClick={()=>{if(confirm('Delete?'))deleteRecord(k.id)}} className="p-1 text-slate-400 hover:text-red-400"><i className="fa-solid fa-trash"></i></button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {modal && <FormModal {...modal} onClose={()=>setModal(null)} onSave={saveRecord}/>}
+
+                    <div className="fixed bottom-4 right-4 flex flex-col gap-2">
+                        {toasts.map(t => (
+                            <div key={t.id} className={`px-4 py-2 rounded-lg shadow-xl text-sm font-bold animate-slide-up ${t.type==='warning'?'bg-red-900 text-red-200':'bg-emerald-900 text-emerald-200'}`}>
+                                {t.msg}
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
         }
 
-        function FormModal({ item, isSubOrder, parentId, onClose, onSave }) {
-            const draftKey = item ? `edit_${item.id}` : isSubOrder ? `sub_${parentId}` : 'new_account';
-            const savedDraft = !item ? loadDraft()?.[draftKey] : null;
-
-            const [form, setForm] = useState(item || savedDraft || {
-                accountId: '', availableVb: '', ign: '', orderVb: '', date: '', item: '', status: 'Stock', tgId: '', isArchived: false
-            });
-            const [errors, setErrors] = useState({});
-            const [saving, setSaving] = useState(false);
-
-            // Auto-save draft for new records
-            useEffect(() => {
-                if (item) return;
-                const timeout = setTimeout(() => {
-                    const drafts = loadDraft() || {};
-                    drafts[draftKey] = form;
-                    saveDraft(drafts);
-                }, 1000);
-                return () => clearTimeout(timeout);
-            }, [form, item, draftKey]);
-
-            const handleChange = (e) => {
-                const { name, value, type, checked } = e.target;
-                setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-                if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
-            };
-
-            const validate = () => {
-                const e = {};
-                if (!isSubOrder && !form.accountId?.trim()) e.accountId = 'Fortnite ID is required';
-                if (!isSubOrder && !form.availableVb) e.availableVb = 'Available V-Bucks required';
-                setErrors(e);
-                return Object.keys(e).length === 0;
-            };
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                if (!validate()) return;
-                setSaving(true);
-                await onSave(form);
-                // Clear draft on successful save
-                const drafts = loadDraft() || {};
-                delete drafts[draftKey];
-                saveDraft(drafts);
-                setSaving(false);
-            };
-
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className="glass-modal border border-slate-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative animate-slide-up">
-                        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 sticky top-0 z-10">
-                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                                {item ? 'Edit Record' : isSubOrder ? 'New Sub-Order' : 'New Account'}
-                                {isSubOrder && <span className="text-[9px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded uppercase tracking-wider font-extrabold border border-blue-500/20">Sub-Order</span>}
-                                {item?.isArchived && <span className="text-[9px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded uppercase tracking-wider font-extrabold border border-purple-500/20">Archived</span>}
-                            </h2>
-                            <button onClick={onClose} className="text-slate-500 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-all">
-                                <i className="fa-solid fa-xmark text-lg"></i>
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-5 space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {!isSubOrder && (
-                                    <>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-                                                Fortnite ID <span className="text-red-400">*</span>
-                                            </label>
-                                            <input type="text" name="accountId" value={form.accountId || ''} onChange={handleChange}
-                                                className={`w-full bg-slate-950 border rounded-lg p-2.5 text-sm font-mono text-white placeholder-slate-600 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 ${errors.accountId ? 'border-red-500' : 'border-slate-700 focus:border-blue-500'}`}
-                                                placeholder="e.g. FNNEW6k.1" autoFocus />
-                                            {errors.accountId && <span className="text-[10px] text-red-400">{errors.accountId}</span>}
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-                                                Available V-Bucks <span className="text-red-400">*</span>
-                                            </label>
-                                            <input type="text" name="availableVb" value={form.availableVb || ''} onChange={handleChange}
-                                                className={`w-full bg-slate-950 border rounded-lg p-2.5 text-sm font-mono text-white placeholder-slate-600 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 ${errors.availableVb ? 'border-red-500' : 'border-slate-700 focus:border-blue-500'}`}
-                                                placeholder="e.g. 13500" inputMode="numeric" />
-                                            {errors.availableVb && <span className="text-[10px] text-red-400">{errors.availableVb}</span>}
-                                        </div>
-                                        <div className="col-span-full border-t border-slate-800/80"></div>
-                                    </>
-                                )}
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-                                    <select name="status" value={form.status || 'Stock'} onChange={handleChange}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500">
-                                        <option value="Stock">📦 In Stock (Unused)</option>
-                                        <option value="Pending">⏳ Pending (To Gift)</option>
-                                        <option value="Done">✅ Done (Gifted)</option>
-                                    </select>
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ordered V-Bucks</label>
-                                    <input type="text" name="orderVb" value={form.orderVb || ''} onChange={handleChange}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm font-mono text-orange-400 placeholder-slate-600 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                                        placeholder="e.g. 3200" inputMode="numeric" />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buyer IGN</label>
-                                    <input type="text" name="ign" value={form.ign || ''} onChange={handleChange}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white placeholder-slate-600 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                                        placeholder="e.g. GamerPro123" />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Skin / Bundle</label>
-                                    <input type="text" name="item" value={form.item || ''} onChange={handleChange}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white placeholder-slate-600 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                                        placeholder="e.g. Lambo Bundle" />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gift Date</label>
-                                    <input type="date" name="date" value={form.date || ''} onChange={handleChange}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500" />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Telegram ID</label>
-                                    <input type="text" name="tgId" value={form.tgId || ''} onChange={handleChange}
-                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm font-mono text-blue-400 placeholder-slate-600 outline-none transition-all focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-                                        placeholder="@username" />
-                                </div>
-
-                                {item && (
-                                    <div className="col-span-full pt-2">
-                                        <label className="flex items-center gap-2 cursor-pointer group">
-                                            <input type="checkbox" name="isArchived" checked={!!form.isArchived} onChange={handleChange}
-                                                className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-purple-500 focus:ring-purple-500/30" />
-                                            <span className="text-sm text-slate-300 group-hover:text-white transition-colors">Archived (hidden from main view)</span>
-                                        </label>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
-                                <button type="button" onClick={onClose}
-                                    className="px-5 py-2.5 rounded-lg font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-sm">
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={saving}
-                                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:hover:bg-blue-600 rounded-lg font-bold text-white shadow-lg shadow-blue-600/20 transition-all text-sm flex items-center gap-2">
-                                    {saving ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-cloud-arrow-up"></i>}
-                                    {saving ? 'Saving...' : item ? 'Update' : 'Save to Cloud'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            );
-        }
-
-        function HelpModal({ onClose }) {
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={onClose}></div>
-                    <div className="glass-modal border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl relative animate-slide-up">
-                        <div className="p-5 border-b border-slate-800 flex justify-between items-center">
-                            <h2 className="text-lg font-bold text-white"><i className="fa-solid fa-circle-question text-blue-400 mr-2"></i>Help & Shortcuts</h2>
-                            <button onClick={onClose} className="text-slate-500 hover:text-white"><i className="fa-solid fa-xmark text-lg"></i></button>
-                        </div>
-                        <div className="p-5 space-y-4 text-sm text-slate-300">
-                            <div>
-                                <h3 className="text-white font-bold mb-1 text-xs uppercase tracking-wider">Keyboard Shortcuts</h3>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <span className="text-slate-400">Ctrl + K</span><span>Focus search</span>
-                                    <span className="text-slate-400">Ctrl + N</span><span>New account</span>
-                                    <span className="text-slate-400">Escape</span><span>Close modal</span>
-                                </div>
-                            </div>
-                            <div>
-                                <h3 className="text-white font-bold mb-1 text-xs uppercase tracking-wider">Data Sync</h3>
-                                <p className="text-xs text-slate-400">Your data syncs in real-time across all devices. Anyone you share this page with can see live updates. Data is also backed up locally for offline access.</p>
-                            </div>
-                            <div>
-                                <h3 className="text-white font-bold mb-1 text-xs uppercase tracking-wider">Import / Export</h3>
-                                <p className="text-xs text-slate-400">Use CSV for spreadsheet compatibility. Use JSON backup for complete data preservation including all metadata.</p>
-                            </div>
-                            <div className="pt-2 border-t border-slate-800">
-                                <p className="text-[10px] text-slate-500">FN Manager Pro v{CONFIG.version} · Built for GitHub Pages</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // ============================================================
-        //  RENDER
-        // ============================================================
-        const root = window.ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
     </script>
 </body>
 </html>
